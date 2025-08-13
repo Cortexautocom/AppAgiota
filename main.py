@@ -1,7 +1,10 @@
-# main.py
 import sys
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QHBoxLayout,
-                               QVBoxLayout, QLabel, QPushButton, QFrame)
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget,
+    QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QFrame, QLineEdit,
+    QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea, QComboBox,
+    QDialog, QGridLayout, QToolButton
+)
 from PySide6.QtGui import QPixmap, QGuiApplication
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
 
@@ -13,11 +16,9 @@ class SplashScreen(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFixedSize(400, 400)
 
-        # Centralizar na tela
         screen = QGuiApplication.primaryScreen().availableGeometry().center()
         self.move(screen.x() - self.width() // 2, screen.y() - self.height() // 2)
 
-        # Layout com a imagem
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -28,12 +29,12 @@ class SplashScreen(QWidget):
         else:
             self.label.setText("Imagem não carregada")
             self.label.setStyleSheet("color: white;")
-        self.label.setAlignment(Qt.AlignCenter)
+            self.label.setAlignment(Qt.AlignCenter)
 
         layout.addWidget(self.label)
         self.setLayout(layout)
 
-        # Fade out suave
+        # Fade-out animation
         self.anim = QPropertyAnimation(self, b"windowOpacity")
         self.anim.setDuration(1000)
         self.anim.setStartValue(1)
@@ -41,31 +42,164 @@ class SplashScreen(QWidget):
         self.anim.setEasingCurve(QEasingCurve.InOutQuad)
         self.anim.finished.connect(self.close_and_open_main)
 
-        QTimer.singleShot(2000, self.anim.start)  # Espera 2s e inicia fade de 1s
+        QTimer.singleShot(2000, self.anim.start)
 
     def close_and_open_main(self):
         self.close()
         self.parent().show()
 
 
+class ClientForm(QWidget):
+    """
+    Formulário de cliente.
+    Campos: Nome, Endereço, Cidade, Telefone, Indicação.
+    Pode ser usado para criar ou editar (se data inicial for passada).
+    """
+    def __init__(self, parent_callback, initial_data=None):
+        super().__init__()
+        self.setWindowTitle("Cliente")
+        self.setFixedSize(340, 400)
+        self.setStyleSheet("background-color: #1c2331; color: white;")
+        self.parent_callback = parent_callback
+
+        layout = QVBoxLayout(self)
+        self.inputs = {}
+
+        campos = ["Nome", "Endereço", "Cidade", "Telefone", "Indicação"]
+        for label_text in campos:
+            lbl = QLabel(label_text)
+            inp = QLineEdit()
+            inp.setStyleSheet("background-color: #2c3446; color: white; padding: 8px; border-radius: 6px;")
+            layout.addWidget(lbl)
+            layout.addWidget(inp)
+            self.inputs[label_text] = inp
+
+        # Preenche dados iniciais (edição)
+        if initial_data:
+            for k, v in self.inputs.items():
+                v.setText(initial_data.get(k, ""))
+
+        btn_save = QPushButton("Salvar")
+        btn_save.setMinimumHeight(40)  # evita cortar o texto "Salvar"
+        btn_save.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db; color: white; padding: 10px; border-radius: 8px; font-weight: 600;
+            }
+            QPushButton:hover { background-color: #2980b9; }
+        """)
+        btn_save.clicked.connect(self.save_client)
+        layout.addWidget(btn_save)
+
+    def save_client(self):
+        data = {k: v.text().strip() for k, v in self.inputs.items()}
+        self.parent_callback(data)
+        self.close()
+
+
+class DetailDialog(QDialog):
+    """Janela pequena com os dados do cliente e botão para editar."""
+    def __init__(self, client_data, on_edit):
+        super().__init__()
+        self.setWindowTitle("Detalhes do Cliente")
+        self.setStyleSheet("background-color: #1c2331; color: white;")
+        self.setFixedSize(360, 260)
+        self.client_data = client_data
+        self.on_edit = on_edit
+
+        layout = QVBoxLayout(self)
+
+        grid = QGridLayout()
+        labels = ["Nome", "Endereço", "Cidade", "Telefone", "Indicação"]
+        row = 0
+        for field in labels:
+            k = QLabel(f"{field}:")
+            k.setStyleSheet("color:#9fb0c7;")
+            v = QLabel(client_data.get(field, ""))
+            v.setStyleSheet("color:white;")
+            grid.addWidget(k, row, 0, alignment=Qt.AlignRight)
+            grid.addWidget(v, row, 1)
+            row += 1
+
+        layout.addLayout(grid)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch()
+
+        edit_btn = QToolButton()
+        edit_btn.setText("🖉 Editar")  # ícone simples
+        edit_btn.setStyleSheet("""
+            QToolButton {
+                background-color:#374157; color:white; padding:8px 12px; border-radius:8px;
+            }
+            QToolButton:hover { background-color:#3f4963; }
+        """)
+        edit_btn.clicked.connect(self.handle_edit)
+        buttons.addWidget(edit_btn)
+
+        close_btn = QPushButton("Fechar")
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background-color:#34495e; color:white; padding:8px 12px; border-radius:8px;
+            }
+            QPushButton:hover { background-color:#2c3e50; }
+        """)
+        close_btn.clicked.connect(self.accept)
+        buttons.addWidget(close_btn)
+
+        layout.addLayout(buttons)
+
+    def handle_edit(self):
+        # Chama o callback para abrir o form de edição
+        self.on_edit(self.client_data)
+        self.accept()
+
+
 class ModernWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-
-        self.setWindowTitle("Empréstimos App")
+        self.offset = None
+        self.setWindowTitle("O Agiota")
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setFixedSize(1200, 700)
-        self.setStyleSheet("background-color: #1c2331;")
+        self.setStyleSheet("""
+            QScrollBar:vertical {
+                background: #252d3c; width: 10px; margin: 4px 0 4px 0; border-radius: 5px;
+            }
+            QScrollBar::handle:vertical {
+                background: #3a455b; min-height: 30px; border-radius: 5px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #4a5671;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px; background: none;
+            }
+        """)
+
+        # Armazena clientes em memória
+        self.clients = []  # cada item: dict com campos
 
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.create_top_bar())
-        main_layout.addLayout(self.create_main_content())
+
+        self.main_content_layout = QHBoxLayout()
+        main_layout.addLayout(self.main_content_layout)
+
+        self.menu = self.create_menu()
+        self.main_content_layout.addWidget(self.menu)
+
+        self.content_area = QLabel("Conteúdo principal aqui")
+        self.content_area.setStyleSheet("color: #ccc; font-size: 24px;")
+        self.content_area.setAlignment(Qt.AlignCenter)
+        self.main_content_layout.addWidget(self.content_area)
 
         container = QWidget()
         container.setLayout(main_layout)
         self.setCentralWidget(container)
+
         self.center()
 
+    # ======== Top bar ========
     def create_top_bar(self):
         bar = QFrame()
         bar.setFixedHeight(50)
@@ -73,67 +207,353 @@ class ModernWindow(QMainWindow):
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(10, 0, 10, 0)
 
-        logo = QLabel("🛡️ Empréstimos App")
+        logo = QLabel("🛡️ O Agiota")
         logo.setStyleSheet("color: white; font-size: 18px; font-weight: bold;")
         layout.addWidget(logo)
-
         layout.addStretch()
 
+        # Minimizar
+        btn_min = QPushButton("➖")
+        btn_min.setFixedSize(30, 30)
+        btn_min.setStyleSheet("""
+            QPushButton { background: none; color: white; font-size: 16px; border: none; }
+            QPushButton:hover { background-color: #3b465e; border-radius: 6px; }
+        """)
+        btn_min.clicked.connect(self.showMinimized)
+        layout.addWidget(btn_min)
+
+        # Fechar
         btn_close = QPushButton("❌")
         btn_close.setFixedSize(30, 30)
         btn_close.setStyleSheet("""
-            QPushButton {
-                background: none;
-                color: white;
-                font-size: 16px;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #e74c3c;
-                border-radius: 6px;
-            }
+            QPushButton { background: none; color: white; font-size: 16px; border: none; }
+            QPushButton:hover { background-color: #e74c3c; border-radius: 6px; }
         """)
         btn_close.clicked.connect(self.close)
         layout.addWidget(btn_close)
 
+        # Arrastar a janela
+        bar.mousePressEvent = self.mouse_press_event
+        bar.mouseMoveEvent = self.mouse_move_event
         return bar
 
-    def create_main_content(self):
-        layout = QHBoxLayout()
+    def mouse_press_event(self, event):
+        if event.button() == Qt.LeftButton:
+            self.offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
 
+    def mouse_move_event(self, event):
+        if self.offset is not None and event.buttons() == Qt.LeftButton:
+            self.move(event.globalPosition().toPoint() - self.offset)
+
+    # ======== Menu lateral ========
+    def create_menu(self):
         menu = QFrame()
         menu.setFixedWidth(220)
         menu.setStyleSheet("background-color: #252d3c;")
         menu_layout = QVBoxLayout(menu)
 
-        for texto in ["🛡️ Próximos vencimentos", "🛡️ Vencidos", "🛡️ Previsões"]:
-            btn = QPushButton(texto)
-            btn.setStyleSheet("""
-                QPushButton {
-                    background: none;
-                    color: white;
-                    padding: 12px;
-                    text-align: left;
-                    font-size: 15px;
-                    border: none;
-                }
-                QPushButton:hover {
-                    background-color: #374157;
-                    border-radius: 5px;
-                }
-            """)
-            menu_layout.addWidget(btn)
+        self.btn_clientes = QPushButton("👤 Clientes")
+        self.btn_clientes.setStyleSheet("""
+            QPushButton { background: none; color: white; padding: 12px; text-align: left; font-size: 15px; border: none; }
+            QPushButton:hover { background-color: #374157; border-radius: 5px; }
+        """)
+        self.btn_clientes.clicked.connect(self.show_client_screen)
+        menu_layout.addWidget(self.btn_clientes)
+
+        self.btn_pesquisar = QPushButton("🔎 Pesquisar")
+        self.btn_pesquisar.setStyleSheet("""
+            QPushButton { background: none; color: white; padding: 12px; text-align: left; font-size: 15px; border: none; }
+            QPushButton:hover { background-color: #374157; border-radius: 5px; }
+        """)
+        self.btn_pesquisar.clicked.connect(self.show_search_screen)
+        menu_layout.addWidget(self.btn_pesquisar)
 
         menu_layout.addStretch()
+        return menu
 
-        content_area = QLabel("Conteúdo principal aqui")
-        content_area.setStyleSheet("color: #ccc; font-size: 24px;")
-        content_area.setAlignment(Qt.AlignCenter)
+    # ======== Tela de Clientes ========
+    def show_client_screen(self):
+        self.client_list_widget = QWidget()
+        layout = QVBoxLayout(self.client_list_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        layout.addWidget(menu)
-        layout.addWidget(content_area)
+        # Topo: título + "Novo Cliente" pequeno (1/8 da largura)
+        top_row = QHBoxLayout()
+        title = QLabel("👥 Lista de Clientes")
+        title.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
+        top_row.addWidget(title)
+        top_row.addStretch()
 
-        return layout
+        btn_add = QPushButton("➕ Novo Cliente")
+        btn_add.setStyleSheet("""
+            QPushButton {
+                background-color: #2ecc71; color: white; padding: 6px 10px; font-size: 12px; border-radius: 6px;
+            }
+            QPushButton:hover { background-color: #27ae60; }
+        """)
+        btn_add.setFixedWidth(max(120, self.width() // 8))
+        btn_add.clicked.connect(self.open_client_form)
+        top_row.addWidget(btn_add)
+
+        layout.addLayout(top_row)
+
+        # ScrollArea com lista vertical
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.NoFrame)
+
+        list_container = QWidget()
+        self.client_container = QVBoxLayout(list_container)
+        self.client_container.setContentsMargins(10, 10, 10, 10)
+        self.client_container.setSpacing(8)
+        self.client_container.addStretch()  # manter empurrado para cima; vamos controlar ao renderizar
+
+        self.scroll_area.setWidget(list_container)
+        layout.addWidget(self.scroll_area)
+
+        # Renderiza clientes
+        self.render_client_list()
+
+        self._replace_main_content(self.client_list_widget)
+
+    def render_client_list(self):
+        if not hasattr(self, "client_container"):
+            return
+
+        # Limpa itens, preservando o stretch final
+        while self.client_container.count() > 0:
+            item = self.client_container.takeAt(0)
+            w = item.widget()
+            if w:
+                w.setParent(None)
+
+        # Recria itens (um abaixo do outro)
+        for idx, client in enumerate(self.clients):
+            card = QFrame()
+            card.setStyleSheet("""
+                QFrame {
+                    background-color:#2c3446; border:1px solid #3a455b; border-radius:10px;
+                }
+                QPushButton#link {
+                    color:#6fb1ff; text-align:left; background:transparent; border:none; padding:8px; font-size:16px;
+                }
+                QPushButton#link:hover { text-decoration: underline; }
+                QLabel { color:#9fb0c7; }
+            """)
+            hl = QHBoxLayout(card)
+            hl.setContentsMargins(10, 8, 10, 8)
+            hl.setSpacing(8)
+
+            # Botão-link com o nome do cliente
+            link = QPushButton(client.get("Nome", "Sem Nome"))
+            link.setObjectName("link")
+            link.clicked.connect(lambda _, c=client: self.open_client_detail(c))
+            hl.addWidget(link, 1)
+
+            # Info secundária
+            city = client.get("Cidade", "")
+            secondary = QLabel(f"{city}")
+            hl.addWidget(secondary, 0, Qt.AlignRight)
+
+            self.client_container.addWidget(card)
+
+        # adiciona um stretch para empurrar tudo para cima e manter layout
+        self.client_container.addStretch()
+
+    def open_client_form(self, initial_data=None, edit_index=None):
+        def callback(data):
+            if edit_index is None:
+                # Novo cliente
+                self.clients.append(data)
+            else:
+                # Edita cliente
+                self.clients[edit_index] = data
+
+            # Atualiza telas (lista e pesquisa) se estiverem abertas
+            if hasattr(self, "client_container"):
+                self.render_client_list()
+            if hasattr(self, "table_results"):
+                self.rebuild_search_filters()
+                self.apply_search_filters()
+
+        self.form = ClientForm(callback, initial_data=initial_data)
+        self.form.show()
+
+    def open_client_detail(self, client_data):
+        # acha o índice do cliente para edição
+        try:
+            idx = self.clients.index(client_data)
+        except ValueError:
+            idx = None
+
+        def on_edit(data):
+            self.open_client_form(initial_data=data, edit_index=idx)
+
+        dlg = DetailDialog(client_data, on_edit)
+        dlg.exec()
+
+    # ======== Tela de Pesquisa ========
+    def show_search_screen(self):
+        self.search_widget = QWidget()
+        layout = QVBoxLayout(self.search_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # Topo: título + "Novo Cliente" replicado
+        top_row = QHBoxLayout()
+        title = QLabel("🔎 Pesquisar Clientes")
+        title.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
+        top_row.addWidget(title)
+        top_row.addStretch()
+
+        btn_add = QPushButton("➕ Novo Cliente")
+        btn_add.setStyleSheet("""
+            QPushButton {
+                background-color: #2ecc71; color: white; padding: 6px 10px; font-size: 12px; border-radius: 6px;
+            }
+            QPushButton:hover { background-color: #27ae60; }
+        """)
+        btn_add.setFixedWidth(max(120, self.width() // 8))
+        btn_add.clicked.connect(self.open_client_form)
+        top_row.addWidget(btn_add)
+
+        layout.addLayout(top_row)
+
+        # Linha de filtros: comboboxes dinâmicos (Nome, Cidade, Indicação)
+        filters_row = QHBoxLayout()
+
+        self.cb_nome = QComboBox()
+        self.cb_nome.setEditable(False)
+        self.cb_nome.setStyleSheet("""
+            QComboBox { background-color:#2c3446; color:white; padding:6px; border-radius:6px; }
+            QComboBox QAbstractItemView { background-color:#2c3446; color:white; selection-background-color:#374157; }
+        """)
+        self.cb_nome.setPlaceholderText("Nome")
+        filters_row.addWidget(self.cb_nome)
+
+        self.cb_cidade = QComboBox()
+        self.cb_cidade.setEditable(False)
+        self.cb_cidade.setStyleSheet("""
+            QComboBox { background-color:#2c3446; color:white; padding:6px; border-radius:6px; }
+            QComboBox QAbstractItemView { background-color:#2c3446; color:white; selection-background-color:#374157; }
+        """)
+        self.cb_cidade.setPlaceholderText("Cidade")
+        filters_row.addWidget(self.cb_cidade)
+
+        self.cb_indicacao = QComboBox()
+        self.cb_indicacao.setEditable(False)
+        self.cb_indicacao.setStyleSheet("""
+            QComboBox { background-color:#2c3446; color:white; padding:6px; border-radius:6px; }
+            QComboBox QAbstractItemView { background-color:#2c3446; color:white; selection-background-color:#374157; }
+        """)
+        self.cb_indicacao.setPlaceholderText("Indicação")
+        filters_row.addWidget(self.cb_indicacao)
+
+        btn_buscar = QPushButton("Buscar")
+        btn_buscar.setStyleSheet("""
+            QPushButton {
+                background-color:#3498db; color:white; padding:8px 12px; border-radius:8px;
+            }
+            QPushButton:hover { background-color:#2980b9; }
+        """)
+        btn_buscar.clicked.connect(self.apply_search_filters)
+        filters_row.addWidget(btn_buscar)
+
+        btn_limpar = QPushButton("Limpar")
+        btn_limpar.setStyleSheet("""
+            QPushButton {
+                background-color:#34495e; color:white; padding:8px 12px; border-radius:8px;
+            }
+            QPushButton:hover { background-color:#2c3e50; }
+        """)
+        btn_limpar.clicked.connect(self.clear_search_filters)
+        filters_row.addWidget(btn_limpar)
+
+        layout.addLayout(filters_row)
+
+        # Tabela de resultados
+        self.table_results = QTableWidget(0, 5)
+        self.table_results.setHorizontalHeaderLabels(["Nome", "Endereço", "Cidade", "Telefone", "Indicação"])
+        self.table_results.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_results.setStyleSheet("""
+            QTableWidget { background-color: #2c3446; color: white; border: 1px solid #3a455b; }
+            QHeaderView::section { background-color: #374157; color: white; padding: 6px; border: none; }
+        """)
+        layout.addWidget(self.table_results)
+
+        self._replace_main_content(self.search_widget)
+
+        # Popular filtros e mostrar tudo
+        self.rebuild_search_filters()
+        self.apply_search_filters()
+
+    def rebuild_search_filters(self):
+        """Atualiza as listas suspensas com valores únicos existentes nos clientes."""
+        def unique_values(key):
+            vals = sorted(set([c.get(key, "").strip() for c in self.clients if c.get(key, "").strip()]))
+            return [""] + vals  # primeiro item vazio = sem filtro
+
+        # salva seleções atuais para tentar manter (opcional)
+        cur_nome = self.cb_nome.currentText() if self.cb_nome.count() else ""
+        cur_cidade = self.cb_cidade.currentText() if self.cb_cidade.count() else ""
+        cur_ind = self.cb_indicacao.currentText() if self.cb_indicacao.count() else ""
+
+        self.cb_nome.clear()
+        self.cb_nome.addItems(unique_values("Nome"))
+        self.cb_cidade.clear()
+        self.cb_cidade.addItems(unique_values("Cidade"))
+        self.cb_indicacao.clear()
+        self.cb_indicacao.addItems(unique_values("Indicação"))
+
+        # tenta restaurar
+        self._set_combobox_if_present(self.cb_nome, cur_nome)
+        self._set_combobox_if_present(self.cb_cidade, cur_cidade)
+        self._set_combobox_if_present(self.cb_indicacao, cur_ind)
+
+    def _set_combobox_if_present(self, cb: QComboBox, value: str):
+        idx = cb.findText(value)
+        if idx >= 0:
+            cb.setCurrentIndex(idx)
+        else:
+            cb.setCurrentIndex(0)
+
+    def clear_search_filters(self):
+        # volta todos para vazio e recarrega a lista completa
+        if hasattr(self, "cb_nome"):
+            self.cb_nome.setCurrentIndex(0)
+        if hasattr(self, "cb_cidade"):
+            self.cb_cidade.setCurrentIndex(0)
+        if hasattr(self, "cb_indicacao"):
+            self.cb_indicacao.setCurrentIndex(0)
+        self.apply_search_filters()
+
+    def apply_search_filters(self):
+        nome = self.cb_nome.currentText().strip().lower() if hasattr(self, "cb_nome") else ""
+        cidade = self.cb_cidade.currentText().strip().lower() if hasattr(self, "cb_cidade") else ""
+        indicacao = self.cb_indicacao.currentText().strip().lower() if hasattr(self, "cb_indicacao") else ""
+
+        filtered = []
+        for c in self.clients:
+            ok_nome = (c.get("Nome", "").lower() == nome) if nome else True
+            ok_cidade = (c.get("Cidade", "").lower() == cidade) if cidade else True
+            ok_ind = (c.get("Indicação", "").lower() == indicacao) if indicacao else True
+            if ok_nome and ok_cidade and ok_ind:
+                filtered.append(c)
+
+        self.table_results.setRowCount(0)
+        for c in filtered:
+            row = self.table_results.rowCount()
+            self.table_results.insertRow(row)
+            self.table_results.setItem(row, 0, QTableWidgetItem(c.get("Nome", "")))
+            self.table_results.setItem(row, 1, QTableWidgetItem(c.get("Endereço", "")))
+            self.table_results.setItem(row, 2, QTableWidgetItem(c.get("Cidade", "")))
+            self.table_results.setItem(row, 3, QTableWidgetItem(c.get("Telefone", "")))
+            self.table_results.setItem(row, 4, QTableWidgetItem(c.get("Indicação", "")))
+
+    # ======== Utilidades ========
+    def _replace_main_content(self, new_widget: QWidget):
+        old = self.main_content_layout.itemAt(1).widget()
+        old.setParent(None)
+        self.main_content_layout.addWidget(new_widget)
 
     def center(self):
         frame = self.frameGeometry()
@@ -144,12 +564,7 @@ class ModernWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-
-    # Cria a janela principal mas não mostra ainda
     main_window = ModernWindow()
-
-    # Cria a splash com fade
     splash = SplashScreen(parent=main_window)
     splash.show()
-
     sys.exit(app.exec())
