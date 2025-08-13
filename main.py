@@ -3,9 +3,10 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QFrame, QLineEdit,
     QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea, QComboBox,
-    QDialog, QGridLayout, QToolButton
+    QDialog, QGridLayout, QToolButton, QGraphicsDropShadowEffect, QMessageBox
 )
-from PySide6.QtGui import QPixmap, QGuiApplication
+
+from PySide6.QtGui import QPixmap, QGuiApplication, QColor
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
 
 
@@ -62,7 +63,28 @@ class ClientForm(QWidget):
         self.setStyleSheet("background-color: #1c2331; color: white;")
         self.parent_callback = parent_callback
 
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        panel = QFrame()
+        panel.setObjectName("ClientFormPanel")
+        panel.setStyleSheet("""
+            QFrame#ClientFormPanel {
+                background-color: #1c2331;
+                border-radius: 14px;
+            }
+        """)
+
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(24)
+        shadow.setOffset(0, 8)
+        shadow.setColor(QColor(0, 0, 0, 130))
+        panel.setGraphicsEffect(shadow)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(16, 16, 16, 16)
+
+        outer.addWidget(panel)
         self.inputs = {}
 
         campos = ["Nome", "Endereço", "Cidade", "Telefone", "Indicação"]
@@ -105,8 +127,31 @@ class DetailDialog(QDialog):
         self.setFixedSize(360, 260)
         self.client_data = client_data
         self.on_edit = on_edit
+        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)    
 
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        panel = QFrame()
+        panel.setObjectName("DetailPanel")
+        panel.setStyleSheet("""
+            QFrame#DetailPanel {
+                background-color: #1c2331;
+                border-radius: 14px;
+            }
+        """)
+
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(24)
+        shadow.setOffset(0, 8)
+        shadow.setColor(QColor(0, 0, 0, 130))
+        panel.setGraphicsEffect(shadow)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(16, 16, 16, 16)
+
+        outer.addWidget(panel)
 
         grid = QGridLayout()
         labels = ["Nome", "Endereço", "Cidade", "Telefone", "Indicação"]
@@ -175,6 +220,7 @@ class ModernWindow(QMainWindow):
                 height: 0px; background: none;
             }
         """)
+        self.setAttribute(Qt.WA_TranslucentBackground)
 
         # Armazena clientes em memória
         self.clients = []  # cada item: dict com campos
@@ -193,9 +239,33 @@ class ModernWindow(QMainWindow):
         self.content_area.setAlignment(Qt.AlignCenter)
         self.main_content_layout.addWidget(self.content_area)
 
-        container = QWidget()
-        container.setLayout(main_layout)
-        self.setCentralWidget(container)
+        shell = QFrame()
+        shell.setObjectName("Shell")
+        shell_layout = QVBoxLayout(shell)
+        shell_layout.setContentsMargins(0, 0, 0, 0)
+
+        content = QWidget()
+        content.setObjectName("Content")
+        content.setLayout(main_layout)
+        shell_layout.addWidget(content)
+
+        # Estilo da casca e do conteúdo com cantos arredondados
+        shell.setStyleSheet("""
+            QFrame#Shell { background-color: transparent; }
+            QWidget#Content {
+                background-color: #1c2331;
+                border-radius: 16px;
+            }
+        """)
+
+        # Sombra suave
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(28)
+        shadow.setOffset(0, 10)
+        shadow.setColor(QColor(0, 0, 0, 140))
+        content.setGraphicsEffect(shadow)
+
+        self.setCentralWidget(shell)
 
         self.center()
 
@@ -203,7 +273,11 @@ class ModernWindow(QMainWindow):
     def create_top_bar(self):
         bar = QFrame()
         bar.setFixedHeight(50)
-        bar.setStyleSheet("background-color: #2c3446;")
+        bar.setStyleSheet("""
+            background-color: #2c3446;
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+        """)
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(10, 0, 10, 0)
 
