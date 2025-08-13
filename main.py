@@ -1,4 +1,5 @@
 import sys
+import re
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QFrame, QLineEdit,
@@ -53,10 +54,10 @@ class SplashScreen(QWidget):
 class ClientForm(QWidget):
     """
     Formulário de cliente.
-    Campos: Nome, Endereço, Cidade, Telefone, Indicação.
+    Campos: Nome, CPF, Endereço, Cidade, Telefone, Indicação.
     Pode ser usado para criar ou editar (se data inicial for passada).
     """
-    def __init__(self, parent_callback, initial_data=None):
+    def __init__(self, parent_callback, initial_data=None, cities=None):
         super().__init__()
         self.setWindowTitle("Cliente")
         self.setFixedSize(340, 400)
@@ -87,20 +88,45 @@ class ClientForm(QWidget):
         outer.addWidget(panel)
         self.inputs = {}
 
-        campos = ["Nome", "Endereço", "Cidade", "Telefone", "Indicação"]
+        campos = ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
         for label_text in campos:
             lbl = QLabel(label_text)
-            inp = QLineEdit()
-            inp.setStyleSheet("background-color: #2c3446; color: white; padding: 8px; border-radius: 6px;")
-            layout.addWidget(lbl)
-            layout.addWidget(inp)
-            self.inputs[label_text] = inp
+
+            if label_text == "Cidade":
+                cb = QComboBox()
+                cb.setEditable(True)  # permite digitar cidade nova
+                cb.setStyleSheet("background-color: #2c3446; color: white; padding: 6px; border-radius: 6px;")
+                cb.setInsertPolicy(QComboBox.NoInsert)  # evita duplicar item automaticamente
+                # popula com cidades já existentes
+                for city in (cities or []):
+                    cb.addItem(city)
+                layout.addWidget(lbl)
+                layout.addWidget(cb)
+                self.inputs[label_text] = cb  # armazena o combobox
+            else:
+                inp = QLineEdit()
+                inp.setStyleSheet("background-color: #2c3446; color: white; padding: 6px; border-radius: 6px;")
+                layout.addWidget(lbl)
+                layout.addWidget(inp)
+                self.inputs[label_text] = inp
+                if label_text == "CPF":
+                    # Máscara: força 11 dígitos no formato 000.000.000-00
+                    inp.setInputMask("000.000.000-00;_")
+                    # Opcional: impede colar letras etc. A máscara já faz boa parte do trabalho.
 
         # Preenche dados iniciais (edição)
         if initial_data:
-            for k, v in self.inputs.items():
-                v.setText(initial_data.get(k, ""))
-
+            for k, w in self.inputs.items():
+                val = initial_data.get(k, "")
+                if isinstance(w, QComboBox):
+                    # coloca a cidade do cliente como selecionada (se não existir, adiciona)
+                    idx = w.findText(val)
+                    if idx < 0 and val:
+                        w.addItem(val)
+                        idx = w.findText(val)
+                    w.setCurrentIndex(max(0, idx))
+                else:
+                    w.setText(val)
         btn_save = QPushButton("Salvar")
         btn_save.setMinimumHeight(40)  # evita cortar o texto "Salvar"
         btn_save.setStyleSheet("""
@@ -113,7 +139,17 @@ class ClientForm(QWidget):
         layout.addWidget(btn_save)
 
     def save_client(self):
-        data = {k: v.text().strip() for k, v in self.inputs.items()}
+        data = {}
+        for k, w in self.inputs.items():
+            if isinstance(w, QComboBox):
+                data[k] = w.currentText().strip()
+            else:
+                data[k] = w.text().strip()
+        cpf_digits = re.sub(r"\D", "", data.get("CPF", ""))
+        if len(cpf_digits) != 11:
+            QMessageBox.warning(self, "CPF inválido", "CPF deve ter exatamente 11 dígitos.")
+            return
+
         self.parent_callback(data)
         self.close()
 
@@ -154,7 +190,7 @@ class DetailDialog(QDialog):
         outer.addWidget(panel)
 
         grid = QGridLayout()
-        labels = ["Nome", "Endereço", "Cidade", "Telefone", "Indicação"]
+        labels = ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
         row = 0
         for field in labels:
             k = QLabel(f"{field}:")
@@ -311,6 +347,11 @@ class ModernWindow(QMainWindow):
         bar.mouseMoveEvent = self.mouse_move_event
         return bar
 
+    def _unique_values(self, key):
+        return sorted({c.get(key, "").strip() for c in self.clients if c.get(key, "").strip()})
+
+
+
     def mouse_press_event(self, event):
         if event.button() == Qt.LeftButton:
             self.offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
@@ -450,7 +491,8 @@ class ModernWindow(QMainWindow):
                 self.rebuild_search_filters()
                 self.apply_search_filters()
 
-        self.form = ClientForm(callback, initial_data=initial_data)
+        cities = self._unique_values("Cidade")
+        self.form = ClientForm(callback, initial_data=initial_data, cities=cities)
         self.form.show()
 
     def open_client_detail(self, client_data):
@@ -492,8 +534,14 @@ class ModernWindow(QMainWindow):
 
         layout.addLayout(top_row)
 
-        # Linha de filtros: comboboxes dinâmicos (Nome, Cidade, Indicação)
+        # Linha de filtros: agora com rótulos acima (VBox para cada filtro)
         filters_row = QHBoxLayout()
+
+        # ===== Nome =====
+        box_nome = QVBoxLayout()
+        lbl_nome = QLabel("Nome")
+        lbl_nome.setStyleSheet("color:#9fb0c7; font-size:12px;")
+        box_nome.addWidget(lbl_nome)
 
         self.cb_nome = QComboBox()
         self.cb_nome.setEditable(False)
@@ -501,8 +549,15 @@ class ModernWindow(QMainWindow):
             QComboBox { background-color:#2c3446; color:white; padding:6px; border-radius:6px; }
             QComboBox QAbstractItemView { background-color:#2c3446; color:white; selection-background-color:#374157; }
         """)
-        self.cb_nome.setPlaceholderText("Nome")
-        filters_row.addWidget(self.cb_nome)
+        self.cb_nome.setPlaceholderText("Selecione um nome")
+        box_nome.addWidget(self.cb_nome)
+        filters_row.addLayout(box_nome)
+
+        # ===== Cidade =====
+        box_cidade = QVBoxLayout()
+        lbl_cidade = QLabel("Cidade")
+        lbl_cidade.setStyleSheet("color:#9fb0c7; font-size:12px;")
+        box_cidade.addWidget(lbl_cidade)
 
         self.cb_cidade = QComboBox()
         self.cb_cidade.setEditable(False)
@@ -510,8 +565,15 @@ class ModernWindow(QMainWindow):
             QComboBox { background-color:#2c3446; color:white; padding:6px; border-radius:6px; }
             QComboBox QAbstractItemView { background-color:#2c3446; color:white; selection-background-color:#374157; }
         """)
-        self.cb_cidade.setPlaceholderText("Cidade")
-        filters_row.addWidget(self.cb_cidade)
+        self.cb_cidade.setPlaceholderText("Selecione uma cidade")
+        box_cidade.addWidget(self.cb_cidade)
+        filters_row.addLayout(box_cidade)
+
+        # ===== Indicação =====
+        box_ind = QVBoxLayout()
+        lbl_ind = QLabel("Indicação")
+        lbl_ind.setStyleSheet("color:#9fb0c7; font-size:12px;")
+        box_ind.addWidget(lbl_ind)
 
         self.cb_indicacao = QComboBox()
         self.cb_indicacao.setEditable(False)
@@ -519,9 +581,11 @@ class ModernWindow(QMainWindow):
             QComboBox { background-color:#2c3446; color:white; padding:6px; border-radius:6px; }
             QComboBox QAbstractItemView { background-color:#2c3446; color:white; selection-background-color:#374157; }
         """)
-        self.cb_indicacao.setPlaceholderText("Indicação")
-        filters_row.addWidget(self.cb_indicacao)
+        self.cb_indicacao.setPlaceholderText("Selecione uma indicação")
+        box_ind.addWidget(self.cb_indicacao)
+        filters_row.addLayout(box_ind)
 
+        # Botões Buscar / Limpar
         btn_buscar = QPushButton("Buscar")
         btn_buscar.setStyleSheet("""
             QPushButton {
@@ -544,9 +608,11 @@ class ModernWindow(QMainWindow):
 
         layout.addLayout(filters_row)
 
-        # Tabela de resultados
-        self.table_results = QTableWidget(0, 5)
-        self.table_results.setHorizontalHeaderLabels(["Nome", "Endereço", "Cidade", "Telefone", "Indicação"])
+        # Tabela de resultados (6 colunas, incluindo CPF)
+        self.table_results = QTableWidget(0, 6)
+        self.table_results.setHorizontalHeaderLabels(
+            ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
+        )
         self.table_results.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_results.setStyleSheet("""
             QTableWidget { background-color: #2c3446; color: white; border: 1px solid #3a455b; }
@@ -559,6 +625,7 @@ class ModernWindow(QMainWindow):
         # Popular filtros e mostrar tudo
         self.rebuild_search_filters()
         self.apply_search_filters()
+
 
     def rebuild_search_filters(self):
         """Atualiza as listas suspensas com valores únicos existentes nos clientes."""
@@ -618,10 +685,11 @@ class ModernWindow(QMainWindow):
             row = self.table_results.rowCount()
             self.table_results.insertRow(row)
             self.table_results.setItem(row, 0, QTableWidgetItem(c.get("Nome", "")))
-            self.table_results.setItem(row, 1, QTableWidgetItem(c.get("Endereço", "")))
-            self.table_results.setItem(row, 2, QTableWidgetItem(c.get("Cidade", "")))
-            self.table_results.setItem(row, 3, QTableWidgetItem(c.get("Telefone", "")))
-            self.table_results.setItem(row, 4, QTableWidgetItem(c.get("Indicação", "")))
+            self.table_results.setItem(row, 1, QTableWidgetItem(c.get("CPF", "")))
+            self.table_results.setItem(row, 2, QTableWidgetItem(c.get("Endereço", "")))
+            self.table_results.setItem(row, 3, QTableWidgetItem(c.get("Cidade", "")))
+            self.table_results.setItem(row, 4, QTableWidgetItem(c.get("Telefone", "")))
+            self.table_results.setItem(row, 5, QTableWidgetItem(c.get("Indicação", "")))
 
     # ======== Utilidades ========
     def _replace_main_content(self, new_widget: QWidget):
