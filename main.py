@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea, QComboBox,
     QDialog, QGridLayout, QToolButton, QGraphicsDropShadowEffect, QMessageBox
 )
-
 from PySide6.QtGui import QPixmap, QGuiApplication, QColor
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
 
@@ -14,16 +13,20 @@ from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
 class SplashScreen(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Janela sem bordas e sempre no topo
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.SplashScreen)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFixedSize(400, 400)
 
+        # Centralizar na tela
         screen = QGuiApplication.primaryScreen().availableGeometry().center()
         self.move(screen.x() - self.width() // 2, screen.y() - self.height() // 2)
 
-        layout = QVBoxLayout()
+        # Layout principal
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
+        # Imagem ou texto alternativo
         self.label = QLabel()
         pixmap = QPixmap("imginicio.png")
         if not pixmap.isNull():
@@ -34,9 +37,8 @@ class SplashScreen(QWidget):
             self.label.setAlignment(Qt.AlignCenter)
 
         layout.addWidget(self.label)
-        self.setLayout(layout)
 
-        # Fade-out animation
+        # Animação de fade-out
         self.anim = QPropertyAnimation(self, b"windowOpacity")
         self.anim.setDuration(1000)
         self.anim.setStartValue(1)
@@ -44,9 +46,12 @@ class SplashScreen(QWidget):
         self.anim.setEasingCurve(QEasingCurve.InOutQuad)
         self.anim.finished.connect(self.close_and_open_main)
 
+        # Iniciar animação após 2 segundos
+        from PySide6.QtCore import QTimer
         QTimer.singleShot(2000, self.anim.start)
 
     def close_and_open_main(self):
+        """Fecha a splash e mostra a janela principal."""
         self.close()
         self.parent().show()
 
@@ -97,29 +102,29 @@ class ClientForm(QWidget):
                 cb.setEditable(True)  # permite digitar cidade nova
                 cb.setStyleSheet("background-color: #2c3446; color: white; padding: 6px; border-radius: 6px;")
                 cb.setInsertPolicy(QComboBox.NoInsert)  # evita duplicar item automaticamente
-                # popula com cidades já existentes
                 for city in (cities or []):
                     cb.addItem(city)
                 layout.addWidget(lbl)
                 layout.addWidget(cb)
-                self.inputs[label_text] = cb  # armazena o combobox
+                self.inputs[label_text] = cb
             else:
                 inp = QLineEdit()
                 inp.setStyleSheet("background-color: #2c3446; color: white; padding: 6px; border-radius: 6px;")
                 layout.addWidget(lbl)
                 layout.addWidget(inp)
                 self.inputs[label_text] = inp
+
                 if label_text == "CPF":
-                    # Máscara: força 11 dígitos no formato 000.000.000-00
                     inp.setInputMask("000.000.000-00;_")
-                    # Opcional: impede colar letras etc. A máscara já faz boa parte do trabalho.
+
+                if label_text == "Telefone":
+                    inp.setInputMask("(00) 00000-0000;_")  # Máscara para telefone
 
         # Preenche dados iniciais (edição)
         if initial_data:
             for k, w in self.inputs.items():
                 val = initial_data.get(k, "")
                 if isinstance(w, QComboBox):
-                    # coloca a cidade do cliente como selecionada (se não existir, adiciona)
                     idx = w.findText(val)
                     if idx < 0 and val:
                         w.addItem(val)
@@ -127,8 +132,9 @@ class ClientForm(QWidget):
                     w.setCurrentIndex(max(0, idx))
                 else:
                     w.setText(val)
+
         btn_save = QPushButton("Salvar")
-        btn_save.setMinimumHeight(40)  # evita cortar o texto "Salvar"
+        btn_save.setMinimumHeight(40)
         btn_save.setStyleSheet("""
             QPushButton {
                 background-color: #3498db; color: white; padding: 10px; border-radius: 8px; font-weight: 600;
@@ -145,12 +151,13 @@ class ClientForm(QWidget):
                 data[k] = w.currentText().strip()
             else:
                 data[k] = w.text().strip()
+
         cpf_digits = re.sub(r"\D", "", data.get("CPF", ""))
         if len(cpf_digits) != 11:
             QMessageBox.warning(self, "CPF inválido", "CPF deve ter exatamente 11 dígitos.")
             return
 
-        self.parent_callback(data)
+        self.parent_callback(data)  # Isso já vai chamar o salvamento no SQLite no ModernWindow
         self.close()
 
 
@@ -164,7 +171,7 @@ class DetailDialog(QDialog):
         self.client_data = client_data
         self.on_edit = on_edit
         self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
-        self.setAttribute(Qt.WA_TranslucentBackground)    
+        self.setAttribute(Qt.WA_TranslucentBackground)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -186,28 +193,26 @@ class DetailDialog(QDialog):
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(16, 16, 16, 16)
-
         outer.addWidget(panel)
 
+        # Grade com as informações
         grid = QGridLayout()
         labels = ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
-        row = 0
-        for field in labels:
+        for row, field in enumerate(labels):
             k = QLabel(f"{field}:")
             k.setStyleSheet("color:#9fb0c7;")
             v = QLabel(client_data.get(field, ""))
             v.setStyleSheet("color:white;")
             grid.addWidget(k, row, 0, alignment=Qt.AlignRight)
             grid.addWidget(v, row, 1)
-            row += 1
-
         layout.addLayout(grid)
 
+        # Botões
         buttons = QHBoxLayout()
         buttons.addStretch()
 
         edit_btn = QToolButton()
-        edit_btn.setText("🖉 Editar")  # ícone simples
+        edit_btn.setText("🖉 Editar")
         edit_btn.setStyleSheet("""
             QToolButton {
                 background-color:#374157; color:white; padding:8px 12px; border-radius:8px;
@@ -230,7 +235,7 @@ class DetailDialog(QDialog):
         layout.addLayout(buttons)
 
     def handle_edit(self):
-        # Chama o callback para abrir o form de edição
+        """Chama o callback para abrir o form de edição."""
         self.on_edit(self.client_data)
         self.accept()
 
@@ -260,6 +265,9 @@ class ModernWindow(QMainWindow):
 
         # Armazena clientes em memória
         self.clients = []  # cada item: dict com campos
+
+        # 🔹 Carrega dados do banco local na inicialização
+        self.load_local_db()
 
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.create_top_bar())
@@ -339,7 +347,7 @@ class ModernWindow(QMainWindow):
             QPushButton { background: none; color: white; font-size: 16px; border: none; }
             QPushButton:hover { background-color: #e74c3c; border-radius: 6px; }
         """)
-        btn_close.clicked.connect(self.close)
+        btn_close.clicked.connect(self.handle_close)
         layout.addWidget(btn_close)
 
         # Arrastar a janela
@@ -347,16 +355,25 @@ class ModernWindow(QMainWindow):
         bar.mouseMoveEvent = self.mouse_move_event
         return bar
 
+    def handle_close(self):
+        """Salva no SQLite antes de fechar o aplicativo."""
+        try:
+            self.save_local_db()  # garante que todos os dados atuais sejam persistidos
+        except Exception as e:
+            print(f"⚠ Erro ao salvar no SQLite antes de fechar: {e}")
+        self.close()
+
     def _unique_values(self, key):
+        """Retorna valores únicos de um campo específico da lista de clientes."""
         return sorted({c.get(key, "").strip() for c in self.clients if c.get(key, "").strip()})
 
-
-
     def mouse_press_event(self, event):
+        """Captura a posição inicial para permitir arrastar a janela."""
         if event.button() == Qt.LeftButton:
             self.offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
 
     def mouse_move_event(self, event):
+        """Permite mover a janela enquanto o botão esquerdo do mouse está pressionado."""
         if self.offset is not None and event.buttons() == Qt.LeftButton:
             self.move(event.globalPosition().toPoint() - self.offset)
 
@@ -367,113 +384,26 @@ class ModernWindow(QMainWindow):
         menu.setStyleSheet("background-color: #252d3c;")
         menu_layout = QVBoxLayout(menu)
 
+        # Botão para abrir diretamente a pesquisa de clientes
         self.btn_clientes = QPushButton("👤 Clientes")
         self.btn_clientes.setStyleSheet("""
             QPushButton { background: none; color: white; padding: 12px; text-align: left; font-size: 15px; border: none; }
             QPushButton:hover { background-color: #374157; border-radius: 5px; }
         """)
-        self.btn_clientes.clicked.connect(self.show_client_screen)
+        self.btn_clientes.clicked.connect(self.show_search_screen)
         menu_layout.addWidget(self.btn_clientes)
 
-        self.btn_pesquisar = QPushButton("🔎 Pesquisar")
-        self.btn_pesquisar.setStyleSheet("""
+        # Botão para Funções Extras
+        self.btn_extras = QPushButton("⚙️ Funções Extras")
+        self.btn_extras.setStyleSheet("""
             QPushButton { background: none; color: white; padding: 12px; text-align: left; font-size: 15px; border: none; }
             QPushButton:hover { background-color: #374157; border-radius: 5px; }
         """)
-        self.btn_pesquisar.clicked.connect(self.show_search_screen)
-        menu_layout.addWidget(self.btn_pesquisar)
+        self.btn_extras.clicked.connect(self.show_extras_screen)
+        menu_layout.addWidget(self.btn_extras)
 
         menu_layout.addStretch()
         return menu
-
-    # ======== Tela de Clientes ========
-    def show_client_screen(self):
-        self.client_list_widget = QWidget()
-        layout = QVBoxLayout(self.client_list_widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        # Topo: título + "Novo Cliente" pequeno (1/8 da largura)
-        top_row = QHBoxLayout()
-        title = QLabel("👥 Lista de Clientes")
-        title.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
-        top_row.addWidget(title)
-        top_row.addStretch()
-
-        btn_add = QPushButton("➕ Novo Cliente")
-        btn_add.setStyleSheet("""
-            QPushButton {
-                background-color: #2ecc71; color: white; padding: 6px 10px; font-size: 12px; border-radius: 6px;
-            }
-            QPushButton:hover { background-color: #27ae60; }
-        """)
-        btn_add.setFixedWidth(max(120, self.width() // 8))
-        btn_add.clicked.connect(self.open_client_form)
-        top_row.addWidget(btn_add)
-
-        layout.addLayout(top_row)
-
-        # ScrollArea com lista vertical
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setFrameShape(QFrame.NoFrame)
-
-        list_container = QWidget()
-        self.client_container = QVBoxLayout(list_container)
-        self.client_container.setContentsMargins(10, 10, 10, 10)
-        self.client_container.setSpacing(8)
-        self.client_container.addStretch()  # manter empurrado para cima; vamos controlar ao renderizar
-
-        self.scroll_area.setWidget(list_container)
-        layout.addWidget(self.scroll_area)
-
-        # Renderiza clientes
-        self.render_client_list()
-
-        self._replace_main_content(self.client_list_widget)
-
-    def render_client_list(self):
-        if not hasattr(self, "client_container"):
-            return
-
-        # Limpa itens, preservando o stretch final
-        while self.client_container.count() > 0:
-            item = self.client_container.takeAt(0)
-            w = item.widget()
-            if w:
-                w.setParent(None)
-
-        # Recria itens (um abaixo do outro)
-        for idx, client in enumerate(self.clients):
-            card = QFrame()
-            card.setStyleSheet("""
-                QFrame {
-                    background-color:#2c3446; border:1px solid #3a455b; border-radius:10px;
-                }
-                QPushButton#link {
-                    color:#6fb1ff; text-align:left; background:transparent; border:none; padding:8px; font-size:16px;
-                }
-                QPushButton#link:hover { text-decoration: underline; }
-                QLabel { color:#9fb0c7; }
-            """)
-            hl = QHBoxLayout(card)
-            hl.setContentsMargins(10, 8, 10, 8)
-            hl.setSpacing(8)
-
-            # Botão-link com o nome do cliente
-            link = QPushButton(client.get("Nome", "Sem Nome"))
-            link.setObjectName("link")
-            link.clicked.connect(lambda _, c=client: self.open_client_detail(c))
-            hl.addWidget(link, 1)
-
-            # Info secundária
-            city = client.get("Cidade", "")
-            secondary = QLabel(f"{city}")
-            hl.addWidget(secondary, 0, Qt.AlignRight)
-
-            self.client_container.addWidget(card)
-
-        # adiciona um stretch para empurrar tudo para cima e manter layout
-        self.client_container.addStretch()
 
     def open_client_form(self, initial_data=None, edit_index=None):
         def callback(data):
@@ -484,9 +414,10 @@ class ModernWindow(QMainWindow):
                 # Edita cliente
                 self.clients[edit_index] = data
 
-            # Atualiza telas (lista e pesquisa) se estiverem abertas
-            if hasattr(self, "client_container"):
-                self.render_client_list()
+            # Salva no SQLite sempre que cadastrar/editar
+            self.save_local_db()
+
+            # Atualiza a tela de pesquisa, se aberta
             if hasattr(self, "table_results"):
                 self.rebuild_search_filters()
                 self.apply_search_filters()
@@ -495,28 +426,15 @@ class ModernWindow(QMainWindow):
         self.form = ClientForm(callback, initial_data=initial_data, cities=cities)
         self.form.show()
 
-    def open_client_detail(self, client_data):
-        # acha o índice do cliente para edição
-        try:
-            idx = self.clients.index(client_data)
-        except ValueError:
-            idx = None
-
-        def on_edit(data):
-            self.open_client_form(initial_data=data, edit_index=idx)
-
-        dlg = DetailDialog(client_data, on_edit)
-        dlg.exec()
-
     # ======== Tela de Pesquisa ========
     def show_search_screen(self):
         self.search_widget = QWidget()
         layout = QVBoxLayout(self.search_widget)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # Topo: título + "Novo Cliente" replicado
+        # Topo: título + "Novo Cliente"
         top_row = QHBoxLayout()
-        title = QLabel("🔎 Pesquisar Clientes")
+        title = QLabel("🔎 Clientes")
         title.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
         top_row.addWidget(title)
         top_row.addStretch()
@@ -531,11 +449,11 @@ class ModernWindow(QMainWindow):
         btn_add.setFixedWidth(max(120, self.width() // 8))
         btn_add.clicked.connect(self.open_client_form)
         top_row.addWidget(btn_add)
-
         layout.addLayout(top_row)
 
-        # Linha de filtros: agora com rótulos acima (VBox para cada filtro)
+        # Linha de filtros com alinhamento inferior
         filters_row = QHBoxLayout()
+        filters_row.setAlignment(Qt.AlignBottom)
 
         # ===== Nome =====
         box_nome = QVBoxLayout()
@@ -608,7 +526,7 @@ class ModernWindow(QMainWindow):
 
         layout.addLayout(filters_row)
 
-        # Tabela de resultados (6 colunas, incluindo CPF)
+        # Tabela de resultados
         self.table_results = QTableWidget(0, 6)
         self.table_results.setHorizontalHeaderLabels(
             ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
@@ -625,7 +543,6 @@ class ModernWindow(QMainWindow):
         # Popular filtros e mostrar tudo
         self.rebuild_search_filters()
         self.apply_search_filters()
-
 
     def rebuild_search_filters(self):
         """Atualiza as listas suspensas com valores únicos existentes nos clientes."""
@@ -645,20 +562,17 @@ class ModernWindow(QMainWindow):
         self.cb_indicacao.clear()
         self.cb_indicacao.addItems(unique_values("Indicação"))
 
-        # tenta restaurar
+        # tenta restaurar seleções anteriores
         self._set_combobox_if_present(self.cb_nome, cur_nome)
         self._set_combobox_if_present(self.cb_cidade, cur_cidade)
         self._set_combobox_if_present(self.cb_indicacao, cur_ind)
 
     def _set_combobox_if_present(self, cb: QComboBox, value: str):
         idx = cb.findText(value)
-        if idx >= 0:
-            cb.setCurrentIndex(idx)
-        else:
-            cb.setCurrentIndex(0)
+        cb.setCurrentIndex(idx if idx >= 0 else 0)
 
     def clear_search_filters(self):
-        # volta todos para vazio e recarrega a lista completa
+        """Reseta todos os filtros e recarrega a lista completa."""
         if hasattr(self, "cb_nome"):
             self.cb_nome.setCurrentIndex(0)
         if hasattr(self, "cb_cidade"):
@@ -668,6 +582,7 @@ class ModernWindow(QMainWindow):
         self.apply_search_filters()
 
     def apply_search_filters(self):
+        """Filtra a lista de clientes de acordo com os filtros selecionados."""
         nome = self.cb_nome.currentText().strip().lower() if hasattr(self, "cb_nome") else ""
         cidade = self.cb_cidade.currentText().strip().lower() if hasattr(self, "cb_cidade") else ""
         indicacao = self.cb_indicacao.currentText().strip().lower() if hasattr(self, "cb_indicacao") else ""
@@ -690,6 +605,18 @@ class ModernWindow(QMainWindow):
             self.table_results.setItem(row, 3, QTableWidgetItem(c.get("Cidade", "")))
             self.table_results.setItem(row, 4, QTableWidgetItem(c.get("Telefone", "")))
             self.table_results.setItem(row, 5, QTableWidgetItem(c.get("Indicação", "")))
+
+        # Permitir edição direta na tabela
+        self.table_results.itemChanged.connect(self.handle_table_edit)
+
+    def handle_table_edit(self, item):
+        """Evento disparado quando uma célula da tabela é editada."""
+        row = item.row()
+        col = item.column()
+        col_names = ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
+        if row < len(self.clients) and col < len(col_names):
+            self.clients[row][col_names[col]] = item.text()
+            self.save_local_db()  # Salva automaticamente após alteração
 
     # ======== Utilidades ========
     def _replace_main_content(self, new_widget: QWidget):
