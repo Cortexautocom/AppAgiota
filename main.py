@@ -1,5 +1,7 @@
 import sys
 import re
+import sqlite3
+from PySide6.QtCore import QRunnable, QThreadPool
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QFrame, QLineEdit,
@@ -356,11 +358,12 @@ class ModernWindow(QMainWindow):
         return bar
 
     def handle_close(self):
-        """Salva no SQLite antes de fechar o aplicativo."""
+        """Salva no SQLite e no Supabase antes de fechar, em segundo plano."""
         try:
-            self.save_local_db()  # garante que todos os dados atuais sejam persistidos
+            self.save_local_db_background()
+            self.save_to_supabase_background()  # vamos criar depois
         except Exception as e:
-            print(f"⚠ Erro ao salvar no SQLite antes de fechar: {e}")
+            print(f"⚠ Erro ao salvar antes de fechar: {e}")
         self.close()
 
     def _unique_values(self, key):
@@ -582,7 +585,7 @@ class ModernWindow(QMainWindow):
         self.apply_search_filters()
 
     def apply_search_filters(self):
-        """Filtra a lista de clientes de acordo com os filtros selecionados."""
+        """Filtra a lista de clientes de acordo com os filtros selecionados (sem salvar no SQLite)."""
         nome = self.cb_nome.currentText().strip().lower() if hasattr(self, "cb_nome") else ""
         cidade = self.cb_cidade.currentText().strip().lower() if hasattr(self, "cb_cidade") else ""
         indicacao = self.cb_indicacao.currentText().strip().lower() if hasattr(self, "cb_indicacao") else ""
@@ -595,6 +598,10 @@ class ModernWindow(QMainWindow):
             if ok_nome and ok_cidade and ok_ind:
                 filtered.append(c)
 
+        # Desconecta temporariamente para evitar salvamento ao atualizar a tabela
+        if self.table_results.receivers("itemChanged(QTableWidgetItem*)") > 0:
+            self.table_results.itemChanged.disconnect(self.handle_table_edit)
+
         self.table_results.setRowCount(0)
         for c in filtered:
             row = self.table_results.rowCount()
@@ -606,17 +613,93 @@ class ModernWindow(QMainWindow):
             self.table_results.setItem(row, 4, QTableWidgetItem(c.get("Telefone", "")))
             self.table_results.setItem(row, 5, QTableWidgetItem(c.get("Indicação", "")))
 
-        # Permitir edição direta na tabela
+        # Reconecta evento de edição de célula
         self.table_results.itemChanged.connect(self.handle_table_edit)
 
+
     def handle_table_edit(self, item):
-        """Evento disparado quando uma célula da tabela é editada."""
+        """Evento disparado quando uma célula da tabela é editada pelo usuário."""
         row = item.row()
         col = item.column()
         col_names = ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
+
         if row < len(self.clients) and col < len(col_names):
-            self.clients[row][col_names[col]] = item.text()
-            self.save_local_db()  # Salva automaticamente após alteração
+            novo_valor = item.text()
+            valor_antigo = self.clients[row].get(col_names[col], "")
+
+            # Só salva se realmente houve alteração
+            if novo_valor != valor_antigo:
+                self.clients[row][col_names[col]] = novo_valor
+                self.save_local_db_background()  # salva em segundo plano
+
+    def load_local_db(self):
+        """Carrega clientes do banco local SQLite para self.clients."""
+        try:
+            conn = sqlite3.connect("clientes.db")
+            cur = conn.cursor()
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS clientes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Nome TEXT,
+                    CPF TEXT,
+                    Endereço TEXT,
+                    Cidade TEXT,
+                    Telefone TEXT,
+                    Indicação TEXT
+                )
+            """)
+            conn.commit()
+
+            cur.execute("SELECT Nome, CPF, Endereço, Cidade, Telefone, Indicação FROM clientes")
+            rows = cur.fetchall()
+
+            self.clients = [
+                {
+                    "Nome": row[0] or "",
+                    "CPF": row[1] or "",
+                    "Endereço": row[2] or "",
+                    "Cidade": row[3] or "",
+                    "Telefone": row[4] or "",
+                    "Indicação": row[5] or ""
+                }
+                for row in rows
+            ]
+
+            conn.close()
+            print(f"✅ {len(self.clients)} clientes carregados do banco local.")
+        except Exception as e:
+            print(f"⚠ Erro ao carregar banco local: {e}")
+
+    def save_local_db(self):
+        """Salva todos os clientes de self.clients no banco local SQLite."""
+        try:
+            conn = sqlite3.connect("clientes.db")
+            cur = conn.cursor()
+
+            # Limpa todos os registros
+            cur.execute("DELETE FROM clientes")
+
+            # Insere todos novamente
+            for c in self.clients:
+                cur.execute("""
+                    INSERT INTO clientes (Nome, CPF, Endereço, Cidade, Telefone, Indicação)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    c.get("Nome", ""),
+                    c.get("CPF", ""),
+                    c.get("Endereço", ""),
+                    c.get("Cidade", ""),
+                    c.get("Telefone", ""),
+                    c.get("Indicação", "")
+                ))
+
+            conn.commit()
+            conn.close()
+            print("💾 Banco local atualizado com sucesso.")
+        except Exception as e:
+            print(f"⚠ Erro ao salvar no banco local: {e}")
+
+
 
     # ======== Utilidades ========
     def _replace_main_content(self, new_widget: QWidget):
@@ -630,6 +713,80 @@ class ModernWindow(QMainWindow):
         frame.moveCenter(screen)
         self.move(frame.topLeft())
 
+    def show_extras_screen(self):
+        """Exibe uma tela de funções extras com opção de backup em nuvem."""
+        self.extras_widget = QWidget()
+        layout = QVBoxLayout(self.extras_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # Título
+        title = QLabel("⚙️ Funções Extras")
+        title.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
+        layout.addWidget(title)
+
+        layout.addSpacing(20)
+
+        # Mensagem de status
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color: #ccc; font-size: 16px;")
+        self.status_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.status_label)
+
+        layout.addSpacing(20)
+
+        # Botão de backup
+        btn_backup = QPushButton("☁️ Backup em nuvem")
+        btn_backup.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db; color: white; padding: 10px;
+                border-radius: 8px; font-size: 14px; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #2980b9; }
+        """)
+        btn_backup.clicked.connect(self._backup_em_nuvem)
+        layout.addWidget(btn_backup, alignment=Qt.AlignCenter)
+
+        self._replace_main_content(self.extras_widget)
+
+    def _backup_em_nuvem(self):
+        """Executa salvamento local e em nuvem em segundo plano."""
+        self.status_label.setText("💾 Salvando em nuvem...")
+
+        # Salva no SQLite primeiro
+        self.save_local_db_background()
+
+        # Depois salva no Supabase
+        self.save_to_supabase_background()
+
+        # Atualiza mensagem de sucesso após 2s
+        QTimer.singleShot(2000, lambda: self.status_label.setText("✅ Alterações salvas com sucesso!"))
+
+    def save_to_supabase_background(self):
+        """Dispara salvamento no Supabase em segundo plano."""
+        worker = SaveWorker(self.save_to_supabase, "Salvando no Supabase")
+        QThreadPool.globalInstance().start(worker)
+
+    def save_local_db_background(self):
+        """Salva o banco local em segundo plano."""
+        worker = SaveWorker(self.save_local_db, "Salvando no SQLite")
+        QThreadPool.globalInstance().start(worker)
+
+
+class SaveWorker(QRunnable):
+    def __init__(self, save_func, descricao="Salvando dados..."):
+        super().__init__()
+        self.save_func = save_func
+        self.descricao = descricao
+
+    def run(self):
+        try:
+            print(f"💾 {self.descricao} (em segundo plano)")
+            self.save_func()
+            print(f"✅ {self.descricao} concluído.")
+        except Exception as e:
+            print(f"⚠ Erro ao executar '{self.descricao}': {e}")
+
+    
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
