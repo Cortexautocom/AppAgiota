@@ -1,6 +1,7 @@
 import sys
 import re
 import sqlite3
+from supabase import create_client, Client
 from PySide6.QtCore import QRunnable, QThreadPool
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
@@ -11,6 +12,11 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QPixmap, QGuiApplication, QColor
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
 
+
+SUPABASE_URL = "https://zqvbgfqzdcejgxthdmht.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxdmJnZnF6ZGNlamd4dGhkbWh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUxMTI5ODAsImV4cCI6MjA3MDY4ODk4MH0.e4NhuarlGNnXrXUWKdLmGoa1DGejn2jmgpbRR_Ztyqw"
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 class SplashScreen(QWidget):
     def __init__(self, parent=None):
@@ -156,7 +162,7 @@ class ClientForm(QWidget):
 
         cpf_digits = re.sub(r"\D", "", data.get("CPF", ""))
         if len(cpf_digits) != 11:
-            QMessageBox.warning(self, "CPF inválido", "CPF deve ter exatamente 11 dígitos.")
+            QMessageBox.warning(self, "Presta atenção, infiliz!", "Tu já viu CPF com menos de 11 números?.")
             return
 
         self.parent_callback(data)  # Isso já vai chamar o salvamento no SQLite no ModernWindow
@@ -759,7 +765,7 @@ class ModernWindow(QMainWindow):
         self.save_to_supabase_background()
 
         # Atualiza mensagem de sucesso após 2s
-        QTimer.singleShot(2000, lambda: self.status_label.setText("✅ Alterações salvas com sucesso!"))
+        QTimer.singleShot(2000, lambda: self.status_label.setText("✅ Pronto, tudo salvo. Pode ficar tranquilo!"))
 
     def save_to_supabase_background(self):
         """Dispara salvamento no Supabase em segundo plano."""
@@ -771,6 +777,29 @@ class ModernWindow(QMainWindow):
         worker = SaveWorker(self.save_local_db, "Salvando no SQLite")
         QThreadPool.globalInstance().start(worker)
 
+
+    def save_to_supabase(self):
+        try:
+            data = []
+            for c in self.clients:
+                data.append({
+                    "Nome": c.get("Nome", ""),
+                    "CPF": c.get("CPF", ""),
+                    "Endereço": c.get("Endereço", ""),
+                    "Cidade": c.get("Cidade", ""),
+                    "Telefone": c.get("Telefone", ""),
+                    "Indicação": c.get("Indicação", "")
+                })
+
+            # Limpa a tabela antes de inserir (opcional)
+            supabase.table("Clientes").delete().neq("id", 0).execute()
+
+            # Insere todos os dados de uma vez
+            supabase.table("Clientes").insert(data).execute()
+
+            print("☁️ Backup no Supabase concluído.")
+        except Exception as e:
+            print(f"⚠ Erro ao salvar no Supabase: {e}")
 
 class SaveWorker(QRunnable):
     def __init__(self, save_func, descricao="Salvando dados..."):
