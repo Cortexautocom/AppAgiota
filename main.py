@@ -366,8 +366,7 @@ class ModernWindow(QMainWindow):
     def handle_close(self):
         """Salva no SQLite e no Supabase antes de fechar, em segundo plano."""
         try:
-            self.save_local_db_background()
-            self.save_to_supabase_background()  # vamos criar depois
+            self.save_local_db_background()            
         except Exception as e:
             print(f"⚠ Erro ao salvar antes de fechar: {e}")
         self.close()
@@ -512,7 +511,7 @@ class ModernWindow(QMainWindow):
         box_ind.addWidget(self.cb_indicacao)
         filters_row.addLayout(box_ind)
 
-        # Botões Buscar / Limpar
+        # Botões Buscar / Limpar alinhados pela base
         btn_buscar = QPushButton("Buscar")
         btn_buscar.setStyleSheet("""
             QPushButton {
@@ -521,7 +520,7 @@ class ModernWindow(QMainWindow):
             QPushButton:hover { background-color:#2980b9; }
         """)
         btn_buscar.clicked.connect(self.apply_search_filters)
-        filters_row.addWidget(btn_buscar)
+        filters_row.addWidget(btn_buscar, alignment=Qt.AlignBottom)
 
         btn_limpar = QPushButton("Limpar")
         btn_limpar.setStyleSheet("""
@@ -531,7 +530,7 @@ class ModernWindow(QMainWindow):
             QPushButton:hover { background-color:#2c3e50; }
         """)
         btn_limpar.clicked.connect(self.clear_search_filters)
-        filters_row.addWidget(btn_limpar)
+        filters_row.addWidget(btn_limpar, alignment=Qt.AlignBottom)
 
         layout.addLayout(filters_row)
 
@@ -609,16 +608,30 @@ class ModernWindow(QMainWindow):
             self.table_results.itemChanged.disconnect(self.handle_table_edit)
 
         self.table_results.setRowCount(0)
+        
         for c in filtered:
             row = self.table_results.rowCount()
             self.table_results.insertRow(row)
-            self.table_results.setItem(row, 0, QTableWidgetItem(c.get("Nome", "")))
-            self.table_results.setItem(row, 1, QTableWidgetItem(c.get("CPF", "")))
+
+            # Coluna 0 - Nome (bloqueada para edição)
+            item_nome = QTableWidgetItem(c.get("Nome", ""))
+            item_nome.setFlags(item_nome.flags() & ~Qt.ItemIsEditable)
+            self.table_results.setItem(row, 0, item_nome)
+
+            # Coluna 1 - CPF (bloqueada para edição)
+            item_cpf = QTableWidgetItem(c.get("CPF", ""))
+            item_cpf.setFlags(item_cpf.flags() & ~Qt.ItemIsEditable)
+            self.table_results.setItem(row, 1, item_cpf)
+
+            # Colunas editáveis
             self.table_results.setItem(row, 2, QTableWidgetItem(c.get("Endereço", "")))
             self.table_results.setItem(row, 3, QTableWidgetItem(c.get("Cidade", "")))
             self.table_results.setItem(row, 4, QTableWidgetItem(c.get("Telefone", "")))
-            self.table_results.setItem(row, 5, QTableWidgetItem(c.get("Indicação", "")))
 
+            # Coluna 5 - Indicação (bloqueada para edição)
+            item_indicacao = QTableWidgetItem(c.get("Indicação", ""))
+            item_indicacao.setFlags(item_indicacao.flags() & ~Qt.ItemIsEditable)
+            self.table_results.setItem(row, 5, item_indicacao)
         # Reconecta evento de edição de célula
         self.table_results.itemChanged.connect(self.handle_table_edit)
 
