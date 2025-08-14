@@ -794,3 +794,5 @@ if __name__ == "__main__":
     splash = SplashScreen(parent=main_window)
     splash.show()
     sys.exit(app.exec())
+
+    #nota
