@@ -1,7 +1,6 @@
 import sys
 import re
 import sqlite3
-from supabase import create_client, Client
 from PySide6.QtCore import QRunnable, QThreadPool
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
@@ -11,12 +10,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QPixmap, QGuiApplication, QColor
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
+from supabase_utils import baixar_do_supabase, salvar_no_supabase
 
-
-SUPABASE_URL = "https://zqvbgfqzdcejgxthdmht.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxdmJnZnF6ZGNlamd4dGhkbWh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUxMTI5ODAsImV4cCI6MjA3MDY4ODk4MH0.e4NhuarlGNnXrXUWKdLmGoa1DGejn2jmgpbRR_Ztyqw"
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 class SplashScreen(QWidget):
     def __init__(self, parent=None):
@@ -765,7 +760,38 @@ class ModernWindow(QMainWindow):
         btn_backup.clicked.connect(self._backup_em_nuvem)
         layout.addWidget(btn_backup, alignment=Qt.AlignCenter)
 
+        layout.addSpacing(20)
+
+        # Botão para baixar dados do Supabase
+        btn_download = QPushButton("📥 Carregar dados da nuvem")
+        btn_download.setStyleSheet("""
+            QPushButton {
+                background-color: #f39c12; color: white; padding: 10px;
+                border-radius: 8px; font-size: 14px; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #d68910; }
+        """)
+        btn_download.clicked.connect(self.acao_download_supabase)
+        layout.addWidget(btn_download, alignment=Qt.AlignCenter)
+
         self._replace_main_content(self.extras_widget)
+
+
+    # Método separado para a ação de download
+    def acao_download_supabase(self):
+        if baixar_do_supabase():
+            self.load_local_db()
+
+            # Só reconstrói filtros se a tela de busca estiver carregada
+            if hasattr(self, "cb_nome") and hasattr(self, "cb_cidade") and hasattr(self, "cb_indicacao"):
+                self.rebuild_search_filters()
+                self.apply_search_filters()
+
+            print("✅ Dados do Supabase carregados.")
+        else:
+            print("⚠ Erro ao baixar dados do Supabase.")
+
+
 
     def _backup_em_nuvem(self):
         """Executa salvamento local e em nuvem em segundo plano."""
@@ -775,44 +801,15 @@ class ModernWindow(QMainWindow):
         self.save_local_db_background()
 
         # Depois salva no Supabase
-        self.save_to_supabase_background()
+        salvar_no_supabase()
 
         # Atualiza mensagem de sucesso após 2s
         QTimer.singleShot(2000, lambda: self.status_label.setText("✅ Pronto, tudo salvo. Pode ficar tranquilo!"))
-
-    def save_to_supabase_background(self):
-        """Dispara salvamento no Supabase em segundo plano."""
-        worker = SaveWorker(self.save_to_supabase, "Salvando no Supabase")
-        QThreadPool.globalInstance().start(worker)
 
     def save_local_db_background(self):
         """Salva o banco local em segundo plano."""
         worker = SaveWorker(self.save_local_db, "Salvando no SQLite")
         QThreadPool.globalInstance().start(worker)
-
-
-    def save_to_supabase(self):
-        try:
-            data = []
-            for c in self.clients:
-                data.append({
-                    "Nome": c.get("Nome", ""),
-                    "CPF": c.get("CPF", ""),
-                    "Endereço": c.get("Endereço", ""),
-                    "Cidade": c.get("Cidade", ""),
-                    "Telefone": c.get("Telefone", ""),
-                    "Indicação": c.get("Indicação", "")
-                })
-
-            # Limpa a tabela antes de inserir (opcional)
-            supabase.table("Clientes").delete().neq("id", 0).execute()
-
-            # Insere todos os dados de uma vez
-            supabase.table("Clientes").insert(data).execute()
-
-            print("☁️ Backup no Supabase concluído.")
-        except Exception as e:
-            print(f"⚠ Erro ao salvar no Supabase: {e}")
 
 class SaveWorker(QRunnable):
     def __init__(self, save_func, descricao="Salvando dados..."):
@@ -828,7 +825,6 @@ class SaveWorker(QRunnable):
         except Exception as e:
             print(f"⚠ Erro ao executar '{self.descricao}': {e}")
 
-    
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
