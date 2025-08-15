@@ -779,22 +779,42 @@ class ModernWindow(QMainWindow):
 
     # Método separado para a ação de download
     def acao_download_supabase(self):
+        reply = QMessageBox.question(
+            self,
+            "Confirmação",
+            "⚠ Esta ação pode gerar a exclusão de dados locais.\n\nTem certeza que deseja prosseguir?",
+            QMessageBox.Yes | QMessageBox.Cancel
+        )
+
+        if reply != QMessageBox.Yes:
+            print("ℹ Operação de download cancelada pelo usuário.")
+            return
+
         if baixar_do_supabase():
             self.load_local_db()
-
-            # Só reconstrói filtros se a tela de busca estiver carregada
-            if hasattr(self, "cb_nome") and hasattr(self, "cb_cidade") and hasattr(self, "cb_indicacao"):
-                self.rebuild_search_filters()
-                self.apply_search_filters()
-
-            print("✅ Dados do Supabase carregados.")
+            self.show_search_screen()  # Vai para tela de busca
+            self.rebuild_search_filters()
+            self.apply_search_filters()
+            print("✅ Dados do Supabase carregados e exibidos na tela de busca.")
         else:
             print("⚠ Erro ao baixar dados do Supabase.")
 
 
 
     def _backup_em_nuvem(self):
-        """Executa salvamento local e em nuvem em segundo plano."""
+        """Executa salvamento local e em nuvem em segundo plano, com confirmação."""
+        
+        reply = QMessageBox.question(
+            self,
+            "Confirmação",
+            "⚠ Esta ação pode gerar a exclusão de dados da nuvem.\n\nTem certeza que deseja prosseguir?",
+            QMessageBox.Yes | QMessageBox.Cancel
+        )
+
+        if reply != QMessageBox.Yes:
+            print("ℹ Upload para nuvem cancelado pelo usuário.")
+            return
+
         self.status_label.setText("💾 Salvando em nuvem...")
 
         # Salva no SQLite primeiro
@@ -804,7 +824,10 @@ class ModernWindow(QMainWindow):
         salvar_no_supabase()
 
         # Atualiza mensagem de sucesso após 2s
-        QTimer.singleShot(2000, lambda: self.status_label.setText("✅ Pronto, tudo salvo. Pode ficar tranquilo!"))
+        QTimer.singleShot(
+            2000,
+            lambda: self.status_label.setText("✅ Pronto, tudo salvo. Pode ficar tranquilo!")
+        )
 
     def save_local_db_background(self):
         """Salva o banco local em segundo plano."""
