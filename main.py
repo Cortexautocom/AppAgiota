@@ -1,4 +1,4 @@
-import sys
+import os, sys
 import re
 import sqlite3
 from PySide6.QtCore import QRunnable, QThreadPool
@@ -11,6 +11,41 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QPixmap, QGuiApplication, QColor
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
 from supabase_utils import baixar_do_supabase, salvar_no_supabase
+
+
+def resource_path(relative_path):
+    """Obtém o caminho do recurso (funciona no .exe e no modo normal)."""
+    try:
+        # PyInstaller cria uma pasta temporária e guarda tudo lá
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+def get_local_db_path():
+    """Garante que o banco de dados local esteja em uma pasta gravável."""
+    import shutil
+
+    # Nome do arquivo do banco
+    db_name = "clientes.db"
+
+    # Pasta onde o .exe está rodando (gravável)
+    if getattr(sys, 'frozen', False):
+        # Se rodando como .exe
+        base_path = os.path.dirname(sys.executable)
+    else:
+        # Se rodando no Python normal
+        base_path = os.path.abspath(".")
+
+    db_path = os.path.join(base_path, db_name)
+
+    # Se o banco ainda não existe nessa pasta, copia o embutido
+    if not os.path.exists(db_path):
+        origem = resource_path(db_name)  # vem do pacote
+        shutil.copy(origem, db_path)
+
+    return db_path
 
 
 class SplashScreen(QWidget):
@@ -31,7 +66,7 @@ class SplashScreen(QWidget):
 
         # Imagem ou texto alternativo
         self.label = QLabel()
-        pixmap = QPixmap("imginicio.png")
+        pixmap = QPixmap(resource_path("imginicio.png"))
         if not pixmap.isNull():
             self.label.setPixmap(pixmap.scaled(400, 400, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
@@ -649,7 +684,7 @@ class ModernWindow(QMainWindow):
     def load_local_db(self):
         """Carrega clientes do banco local SQLite para self.clients."""
         try:
-            conn = sqlite3.connect("clientes.db")
+            conn = sqlite3.connect(get_local_db_path())
             cur = conn.cursor()
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS clientes (
@@ -687,7 +722,7 @@ class ModernWindow(QMainWindow):
     def save_local_db(self):
         """Salva todos os clientes de self.clients no banco local SQLite."""
         try:
-            conn = sqlite3.connect("clientes.db")
+            conn = sqlite3.connect(get_local_db_path())
             cur = conn.cursor()
 
             # Limpa todos os registros
