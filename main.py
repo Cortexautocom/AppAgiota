@@ -3,12 +3,16 @@ import os, sys
 import re
 import sqlite3
 from datetime import datetime
-
+from ui.clientes_ui import ClientForm, DetailDialog
 # 🎨 Interface gráfica (PySide6)
 from PySide6.QtCore import (
     QRunnable, QThreadPool, Qt, QTimer,
     QPropertyAnimation, QEasingCurve
 )
+from ui.emprestimos_ui import EmprestimoForm
+
+from ui.splash import SplashScreen
+
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QPushButton, QFrame, QLineEdit, QTableWidget,
@@ -70,255 +74,14 @@ print("📤 Iniciando operação no banco...")
 # =====================================================================
 # SplashScreen
 # =====================================================================
-class SplashScreen(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        # Janela sem bordas e sempre no topo
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.SplashScreen)
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(400, 400)
-
-        # Centralizar na tela
-        screen = QGuiApplication.primaryScreen().availableGeometry().center()
-        self.move(screen.x() - self.width() // 2, screen.y() - self.height() // 2)
-
-        # Layout principal
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        # Imagem ou texto alternativo
-        self.label = QLabel()
-        pixmap = QPixmap(resource_path("imginicio.png"))
-
-        if not pixmap.isNull():
-            self.label.setPixmap(pixmap.scaled(400, 400, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        else:
-            self.label.setText("Imagem não carregada")
-            self.label.setStyleSheet("color: white;")
-            self.label.setAlignment(Qt.AlignCenter)
-
-        layout.addWidget(self.label)
-
-        # Animação de fade-out
-        self.anim = QPropertyAnimation(self, b"windowOpacity")
-        self.anim.setDuration(1000)
-        self.anim.setStartValue(1)
-        self.anim.setEndValue(0)
-        self.anim.setEasingCurve(QEasingCurve.InOutQuad)
-        self.anim.finished.connect(self.close_and_open_main)
-
-        # Iniciar animação após 2 segundos
-        from PySide6.QtCore import QTimer
-        QTimer.singleShot(2000, self.anim.start)
-
-    def close_and_open_main(self):
-        """Fecha a splash e mostra a janela principal."""
-        self.close()
-        self.parent().show()
-
 
 # =====================================================================
 # ClientForm
 # =====================================================================
-class ClientForm(QWidget):
-    """
-    Formulário de cliente.
-    Campos: Nome, CPF, Endereço, Cidade, Telefone, Indicação.
-    Pode ser usado para criar ou editar (se data inicial for passada).
-    """
-    def __init__(self, parent_callback, initial_data=None, cities=None):
-        super().__init__()
-        self.setWindowTitle("Cliente")
-        self.setFixedSize(340, 400)
-        self.setStyleSheet("background-color: #1c2331; color: white;")
-
-        self.parent_callback = parent_callback
-
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-
-        panel = QFrame()
-        panel.setObjectName("ClientFormPanel")
-        panel.setStyleSheet("""
-            QFrame#ClientFormPanel {
-                background-color: #1c2331;
-                border-radius: 14px;
-            }
-        """)
-
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(24)
-        shadow.setOffset(0, 8)
-        shadow.setColor(QColor(0, 0, 0, 130))
-        panel.setGraphicsEffect(shadow)
-
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(16, 16, 16, 16)
-        outer.addWidget(panel)
-
-        self.inputs = {}
-        campos = ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
-
-        for label_text in campos:
-            lbl = QLabel(label_text)
-
-            if label_text == "Cidade":
-                cb = QComboBox()
-                cb.setEditable(True)  # permite digitar cidade nova
-                cb.setStyleSheet("background-color: #2c3446; color: white; padding: 6px; border-radius: 6px;")
-                cb.setInsertPolicy(QComboBox.NoInsert)  # evita duplicar item automaticamente
-
-                for city in (cities or []):
-                    cb.addItem(city)
-
-                layout.addWidget(lbl)
-                layout.addWidget(cb)
-                self.inputs[label_text] = cb
-            else:
-                inp = QLineEdit()
-                inp.setStyleSheet("background-color: #2c3446; color: white; padding: 6px; border-radius: 6px;")
-
-                if label_text == "CPF":
-                    inp.setInputMask("000.000.000-00;_")
-                if label_text == "Telefone":
-                    inp.setInputMask("(00) 00000-0000;_")
-
-                layout.addWidget(lbl)
-                layout.addWidget(inp)
-                self.inputs[label_text] = inp
-
-        # Preenche dados iniciais (edição)
-        if initial_data:
-            for k, w in self.inputs.items():
-                val = initial_data.get(k, "")
-                if isinstance(w, QComboBox):
-                    idx = w.findText(val)
-                    if idx < 0 and val:
-                        w.addItem(val)
-                        idx = w.findText(val)
-                    w.setCurrentIndex(max(0, idx))
-                else:
-                    w.setText(val)
-
-        # Botão salvar
-        btn_save = QPushButton("Salvar")
-        btn_save.setMinimumHeight(40)
-        btn_save.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db; color: white;
-                padding: 10px; border-radius: 8px; font-weight: 600;
-            }
-            QPushButton:hover { background-color: #2980b9; }
-        """)
-        btn_save.clicked.connect(self.save_client)
-        layout.addWidget(btn_save)
-
-    def save_client(self):
-        data = {}
-        for k, w in self.inputs.items():
-            if isinstance(w, QComboBox):
-                data[k] = w.currentText().strip()
-            else:
-                data[k] = w.text().strip()
-
-        cpf_digits = re.sub(r"\D", "", data.get("CPF", ""))
-        if len(cpf_digits) != 11:
-            QMessageBox.warning(self, "Presta atenção, infiliz!", "Tu já viu CPF com menos de 11 números?.")
-            return
-
-        self.parent_callback(data)  # Isso já vai chamar o salvamento no SQLite no ModernWindow
-        self.close()
 
 # =====================================================================
 # DetailDialog
 # =====================================================================
-class DetailDialog(QDialog):
-    """Janela pequena com os dados do cliente e botão para editar."""
-    def __init__(self, client_data, on_edit):
-        super().__init__()
-        self.setWindowTitle("Detalhes do Cliente")
-        self.setStyleSheet("background-color: #1c2331; color: white;")
-        self.setFixedSize(360, 260)
-
-        self.client_data = client_data
-        self.on_edit = on_edit
-
-        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
-        self.setAttribute(Qt.WA_TranslucentBackground)
-
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-
-        # Painel
-        panel = QFrame()
-        panel.setObjectName("DetailPanel")
-        panel.setStyleSheet("""
-            QFrame#DetailPanel {
-                background-color: #1c2331;
-                border-radius: 14px;
-            }
-        """)
-
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(24)
-        shadow.setOffset(0, 8)
-        shadow.setColor(QColor(0, 0, 0, 130))
-        panel.setGraphicsEffect(shadow)
-
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(16, 16, 16, 16)
-        outer.addWidget(panel)
-
-        # Grade com as informações
-        grid = QGridLayout()
-        labels = ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
-
-        for row, field in enumerate(labels):
-            k = QLabel(f"{field}:")
-            k.setStyleSheet("color:#9fb0c7;")
-
-            v = QLabel(client_data.get(field, ""))
-            v.setStyleSheet("color:white;")
-
-            grid.addWidget(k, row, 0, alignment=Qt.AlignRight)
-            grid.addWidget(v, row, 1)
-
-        layout.addLayout(grid)
-
-        # Botões
-        buttons = QHBoxLayout()
-        buttons.addStretch()
-
-        edit_btn = QToolButton()
-        edit_btn.setText("🖉 Editar")
-        edit_btn.setStyleSheet("""
-            QToolButton {
-                background-color:#374157; color:white;
-                padding:8px 12px; border-radius:8px;
-            }
-            QToolButton:hover { background-color:#3f4963; }
-        """)
-        edit_btn.clicked.connect(self.handle_edit)
-        buttons.addWidget(edit_btn)
-
-        close_btn = QPushButton("Fechar")
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background-color:#34495e; color:white;
-                padding:8px 12px; border-radius:8px;
-            }
-            QPushButton:hover { background-color:#2c3e50; }
-        """)
-        close_btn.clicked.connect(self.accept)
-        buttons.addWidget(close_btn)
-
-        layout.addLayout(buttons)
-
-    def handle_edit(self):
-        """Chama o callback para abrir o form de edição."""
-        self.on_edit(self.client_data)
-        self.accept()
 
 # =====================================================================
 # ModernWindow
@@ -699,9 +462,9 @@ class ModernWindow(QMainWindow):
         layout.addLayout(filters_row)
 
         # Tabela de resultados
-        self.table_results = QTableWidget(0, 6)
+        self.table_results = QTableWidget(0, 7)
         self.table_results.setHorizontalHeaderLabels(
-            ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
+            ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação", "Ações"]
         )
         self.table_results.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_results.setStyleSheet("""
@@ -772,6 +535,7 @@ class ModernWindow(QMainWindow):
             self.cb_indicacao.setCurrentIndex(0)
         self.apply_search_filters()
 
+
     def apply_search_filters(self):
         """Filtra a lista de clientes de acordo com os filtros selecionados (sem salvar no SQLite)."""
         nome = self.cb_nome.currentText().strip().lower() if hasattr(self, "cb_nome") else ""
@@ -797,8 +561,7 @@ class ModernWindow(QMainWindow):
             row = self.table_results.rowCount()
             self.table_results.insertRow(row)
 
-            # Cabeçalhos visuais mantidos:
-            # ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
+            # Cabeçalhos visuais: ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação", "Ações"]
 
             # Nome (não editável)
             item_nome = QTableWidgetItem(c[1])
@@ -824,7 +587,30 @@ class ModernWindow(QMainWindow):
             item_indicacao.setFlags(item_indicacao.flags() & ~Qt.ItemIsEditable)
             self.table_results.setItem(row, 5, item_indicacao)
 
+            # Botão 💰 de ações (abrir financeiro)
+            btn_finance = QPushButton("💰")
+            btn_finance.setFixedSize(40, 30)
+            btn_finance.setStyleSheet("""
+                QPushButton {
+                    background-color: #27ae60; color: white;
+                    border-radius: 6px; font-weight: bold;
+                }
+                QPushButton:hover { background-color: #2ecc71; }
+            """)
+            btn_finance.clicked.connect(lambda _, cliente=c: self.open_finance_form(cliente))
+
+            self.table_results.setCellWidget(row, 6, btn_finance)
+
         self.table_results.itemChanged.connect(self.handle_table_edit)
+
+    def open_finance_form(self, client_data):
+        """Abre o formulário de empréstimo para o cliente selecionado."""
+        def callback(data):
+            print("💰 Empréstimo salvo para cliente:", client_data[1])
+            print("Dados do empréstimo:", data)
+
+        self.form_emprestimo = EmprestimoForm(callback)
+        self.form_emprestimo.show()
 
 
     # ======== Edição inline da tabela ========

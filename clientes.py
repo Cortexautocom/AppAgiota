@@ -6,15 +6,12 @@ from config import get_local_db_path
 clientes = []
 
 # 🔹 Função para carregar os clientes do banco local
-def carregar_clientes():
-    print("DEBUG - Carregando clientes do banco...")
+def carregar_clientes():    
     conn = sqlite3.connect(get_local_db_path())
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM clientes")
     clientes_db = cursor.fetchall()
-    conn.close()
-
-    print("DEBUG - Clientes encontrados no banco:", clientes_db)
+    conn.close()    
 
     # Atualiza a variável global
     global clientes
@@ -42,8 +39,7 @@ def salvar_clientes(lista_clientes):
     conn.commit()
 
     # 🔹 Debug: conferir se realmente gravou
-    cur.execute("SELECT * FROM clientes")
-    print("DEBUG - Conteúdo atual da tabela clientes:", cur.fetchall())
+    cur.execute("SELECT * FROM clientes")    
 
     conn.close()
 
