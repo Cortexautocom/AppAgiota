@@ -1,16 +1,56 @@
+# 🔧 Sistema e banco
 import os, sys
 import re
 import sqlite3
-from PySide6.QtCore import QRunnable, QThreadPool
+from datetime import datetime
+
+# 🎨 Interface gráfica (PySide6)
+from PySide6.QtCore import (
+    QRunnable, QThreadPool, Qt, QTimer,
+    QPropertyAnimation, QEasingCurve
+)
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget,
-    QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QFrame, QLineEdit,
-    QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea, QComboBox,
-    QDialog, QGridLayout, QToolButton, QGraphicsDropShadowEffect, QMessageBox
+    QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
+    QLabel, QPushButton, QFrame, QLineEdit, QTableWidget,
+    QTableWidgetItem, QHeaderView, QScrollArea, QComboBox,
+    QDialog, QGridLayout, QToolButton, QGraphicsDropShadowEffect,
+    QMessageBox
 )
 from PySide6.QtGui import QPixmap, QGuiApplication, QColor
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
-from supabase_utils import baixar_do_supabase, salvar_no_supabase
+
+# Config
+from config import criar_tabelas_local, get_local_db_path, verificar_tabelas
+
+print("📂 Conectando ao banco:", get_local_db_path())
+print("🔧 Criando tabelas...")
+criar_tabelas_local()
+print("✅ Tabelas criadas.")
+
+# ☁️ Supabase (sincronização)
+from supabase_utils import (
+    baixar_clientes, enviar_clientes,
+    baixar_emprestimos, enviar_emprestimos,
+    baixar_parcelas, enviar_parcelas,
+    baixar_movimentacoes, enviar_movimentacoes
+)
+
+# 📦 Módulos de dados
+from clientes import (
+    clientes, carregar_clientes, salvar_clientes,
+    sincronizar_clientes_download, sincronizar_clientes_upload
+)
+from emprestimos import (
+    emprestimos, carregar_emprestimos, salvar_emprestimos,
+    sincronizar_emprestimos_download, sincronizar_emprestimos_upload
+)
+from parcelas import (
+    parcelas, carregar_parcelas, salvar_parcelas,
+    sincronizar_parcelas_download, sincronizar_parcelas_upload
+)
+from movimentacoes import (
+    movimentacoes, carregar_movimentacoes, salvar_movimentacoes,
+    sincronizar_movimentacoes_download, sincronizar_movimentacoes_upload
+)
 
 
 def resource_path(relative_path):
@@ -23,34 +63,17 @@ def resource_path(relative_path):
 
     return os.path.join(base_path, relative_path)
 
-def get_local_db_path():
-    """Garante que o banco de dados local esteja em uma pasta gravável."""
-    import shutil
 
-    # Nome do arquivo do banco
-    db_name = "clientes.db"
-
-    # Pasta onde o .exe está rodando (gravável)
-    if getattr(sys, 'frozen', False):
-        # Se rodando como .exe
-        base_path = os.path.dirname(sys.executable)
-    else:
-        # Se rodando no Python normal
-        base_path = os.path.abspath(".")
-
-    db_path = os.path.join(base_path, db_name)
-
-    # Se o banco ainda não existe nessa pasta, copia o embutido
-    if not os.path.exists(db_path):
-        origem = resource_path(db_name)  # vem do pacote
-        shutil.copy(origem, db_path)
-
-    return db_path
+print("📤 Iniciando operação no banco...")
 
 
+# =====================================================================
+# SplashScreen
+# =====================================================================
 class SplashScreen(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+
         # Janela sem bordas e sempre no topo
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.SplashScreen)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -67,6 +90,7 @@ class SplashScreen(QWidget):
         # Imagem ou texto alternativo
         self.label = QLabel()
         pixmap = QPixmap(resource_path("imginicio.png"))
+
         if not pixmap.isNull():
             self.label.setPixmap(pixmap.scaled(400, 400, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
@@ -94,6 +118,9 @@ class SplashScreen(QWidget):
         self.parent().show()
 
 
+# =====================================================================
+# ClientForm
+# =====================================================================
 class ClientForm(QWidget):
     """
     Formulário de cliente.
@@ -105,6 +132,7 @@ class ClientForm(QWidget):
         self.setWindowTitle("Cliente")
         self.setFixedSize(340, 400)
         self.setStyleSheet("background-color: #1c2331; color: white;")
+
         self.parent_callback = parent_callback
 
         outer = QVBoxLayout(self)
@@ -127,11 +155,11 @@ class ClientForm(QWidget):
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(16, 16, 16, 16)
-
         outer.addWidget(panel)
-        self.inputs = {}
 
+        self.inputs = {}
         campos = ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
+
         for label_text in campos:
             lbl = QLabel(label_text)
 
@@ -140,23 +168,25 @@ class ClientForm(QWidget):
                 cb.setEditable(True)  # permite digitar cidade nova
                 cb.setStyleSheet("background-color: #2c3446; color: white; padding: 6px; border-radius: 6px;")
                 cb.setInsertPolicy(QComboBox.NoInsert)  # evita duplicar item automaticamente
+
                 for city in (cities or []):
                     cb.addItem(city)
+
                 layout.addWidget(lbl)
                 layout.addWidget(cb)
                 self.inputs[label_text] = cb
             else:
                 inp = QLineEdit()
                 inp.setStyleSheet("background-color: #2c3446; color: white; padding: 6px; border-radius: 6px;")
-                layout.addWidget(lbl)
-                layout.addWidget(inp)
-                self.inputs[label_text] = inp
 
                 if label_text == "CPF":
                     inp.setInputMask("000.000.000-00;_")
-
                 if label_text == "Telefone":
-                    inp.setInputMask("(00) 00000-0000;_")  # Máscara para telefone
+                    inp.setInputMask("(00) 00000-0000;_")
+
+                layout.addWidget(lbl)
+                layout.addWidget(inp)
+                self.inputs[label_text] = inp
 
         # Preenche dados iniciais (edição)
         if initial_data:
@@ -171,11 +201,13 @@ class ClientForm(QWidget):
                 else:
                     w.setText(val)
 
+        # Botão salvar
         btn_save = QPushButton("Salvar")
         btn_save.setMinimumHeight(40)
         btn_save.setStyleSheet("""
             QPushButton {
-                background-color: #3498db; color: white; padding: 10px; border-radius: 8px; font-weight: 600;
+                background-color: #3498db; color: white;
+                padding: 10px; border-radius: 8px; font-weight: 600;
             }
             QPushButton:hover { background-color: #2980b9; }
         """)
@@ -198,7 +230,9 @@ class ClientForm(QWidget):
         self.parent_callback(data)  # Isso já vai chamar o salvamento no SQLite no ModernWindow
         self.close()
 
-
+# =====================================================================
+# DetailDialog
+# =====================================================================
 class DetailDialog(QDialog):
     """Janela pequena com os dados do cliente e botão para editar."""
     def __init__(self, client_data, on_edit):
@@ -206,14 +240,17 @@ class DetailDialog(QDialog):
         self.setWindowTitle("Detalhes do Cliente")
         self.setStyleSheet("background-color: #1c2331; color: white;")
         self.setFixedSize(360, 260)
+
         self.client_data = client_data
         self.on_edit = on_edit
+
         self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
 
+        # Painel
         panel = QFrame()
         panel.setObjectName("DetailPanel")
         panel.setStyleSheet("""
@@ -236,13 +273,17 @@ class DetailDialog(QDialog):
         # Grade com as informações
         grid = QGridLayout()
         labels = ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
+
         for row, field in enumerate(labels):
             k = QLabel(f"{field}:")
             k.setStyleSheet("color:#9fb0c7;")
+
             v = QLabel(client_data.get(field, ""))
             v.setStyleSheet("color:white;")
+
             grid.addWidget(k, row, 0, alignment=Qt.AlignRight)
             grid.addWidget(v, row, 1)
+
         layout.addLayout(grid)
 
         # Botões
@@ -253,7 +294,8 @@ class DetailDialog(QDialog):
         edit_btn.setText("🖉 Editar")
         edit_btn.setStyleSheet("""
             QToolButton {
-                background-color:#374157; color:white; padding:8px 12px; border-radius:8px;
+                background-color:#374157; color:white;
+                padding:8px 12px; border-radius:8px;
             }
             QToolButton:hover { background-color:#3f4963; }
         """)
@@ -263,7 +305,8 @@ class DetailDialog(QDialog):
         close_btn = QPushButton("Fechar")
         close_btn.setStyleSheet("""
             QPushButton {
-                background-color:#34495e; color:white; padding:8px 12px; border-radius:8px;
+                background-color:#34495e; color:white;
+                padding:8px 12px; border-radius:8px;
             }
             QPushButton:hover { background-color:#2c3e50; }
         """)
@@ -277,52 +320,70 @@ class DetailDialog(QDialog):
         self.on_edit(self.client_data)
         self.accept()
 
-
+# =====================================================================
+# ModernWindow
+# =====================================================================
 class ModernWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.offset = None
+
         self.setWindowTitle("O Agiota")
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setFixedSize(1200, 700)
         self.setStyleSheet("""
             QScrollBar:vertical {
-                background: #252d3c; width: 10px; margin: 4px 0 4px 0; border-radius: 5px;
+                background: #252d3c;
+                width: 10px;
+                margin: 4px 0 4px 0;
+                border-radius: 5px;
             }
             QScrollBar::handle:vertical {
-                background: #3a455b; min-height: 30px; border-radius: 5px;
+                background: #3a455b;
+                min-height: 30px;
+                border-radius: 5px;
             }
             QScrollBar::handle:vertical:hover {
                 background: #4a5671;
             }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px; background: none;
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {
+                height: 0px;
+                background: none;
             }
         """)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
-        # Armazena clientes em memória
-        self.clients = []  # cada item: dict com campos
+        # 🔹 Dados em memória (vêm dos módulos)
+        self.clients = clientes
+        self.emprestimos = emprestimos
+        self.parcelas = parcelas
+        self.movimentacoes = movimentacoes
 
         # 🔹 Carrega dados do banco local na inicialização
         self.load_local_db()
 
+        # 🔹 Layout principal da interface
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.create_top_bar())
 
         self.main_content_layout = QHBoxLayout()
         main_layout.addLayout(self.main_content_layout)
 
+        # Menu lateral
         self.menu = self.create_menu()
         self.main_content_layout.addWidget(self.menu)
 
+        # Área de conteúdo
         self.content_area = QLabel("Conteúdo principal aqui")
         self.content_area.setStyleSheet("color: #ccc; font-size: 24px;")
         self.content_area.setAlignment(Qt.AlignCenter)
         self.main_content_layout.addWidget(self.content_area)
 
+        # 🔹 Casca visual com sombra e cantos arredondados
         shell = QFrame()
         shell.setObjectName("Shell")
+
         shell_layout = QVBoxLayout(shell)
         shell_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -331,7 +392,6 @@ class ModernWindow(QMainWindow):
         content.setLayout(main_layout)
         shell_layout.addWidget(content)
 
-        # Estilo da casca e do conteúdo com cantos arredondados
         shell.setStyleSheet("""
             QFrame#Shell { background-color: transparent; }
             QWidget#Content {
@@ -340,7 +400,6 @@ class ModernWindow(QMainWindow):
             }
         """)
 
-        # Sombra suave
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(28)
         shadow.setOffset(0, 10)
@@ -348,7 +407,6 @@ class ModernWindow(QMainWindow):
         content.setGraphicsEffect(shadow)
 
         self.setCentralWidget(shell)
-
         self.center()
 
     # ======== Top bar ========
@@ -360,20 +418,29 @@ class ModernWindow(QMainWindow):
             border-top-left-radius: 16px;
             border-top-right-radius: 16px;
         """)
+
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(10, 0, 10, 0)
 
+        # Logo
         logo = QLabel("🛡️ O Agiota")
         logo.setStyleSheet("color: white; font-size: 18px; font-weight: bold;")
         layout.addWidget(logo)
+
         layout.addStretch()
 
         # Minimizar
         btn_min = QPushButton("➖")
         btn_min.setFixedSize(30, 30)
         btn_min.setStyleSheet("""
-            QPushButton { background: none; color: white; font-size: 16px; border: none; }
-            QPushButton:hover { background-color: #3b465e; border-radius: 6px; }
+            QPushButton {
+                background: none; color: white;
+                font-size: 16px; border: none;
+            }
+            QPushButton:hover {
+                background-color: #3b465e;
+                border-radius: 6px;
+            }
         """)
         btn_min.clicked.connect(self.showMinimized)
         layout.addWidget(btn_min)
@@ -382,8 +449,14 @@ class ModernWindow(QMainWindow):
         btn_close = QPushButton("❌")
         btn_close.setFixedSize(30, 30)
         btn_close.setStyleSheet("""
-            QPushButton { background: none; color: white; font-size: 16px; border: none; }
-            QPushButton:hover { background-color: #e74c3c; border-radius: 6px; }
+            QPushButton {
+                background: none; color: white;
+                font-size: 16px; border: none;
+            }
+            QPushButton:hover {
+                background-color: #e74c3c;
+                border-radius: 6px;
+            }
         """)
         btn_close.clicked.connect(self.handle_close)
         layout.addWidget(btn_close)
@@ -391,19 +464,17 @@ class ModernWindow(QMainWindow):
         # Arrastar a janela
         bar.mousePressEvent = self.mouse_press_event
         bar.mouseMoveEvent = self.mouse_move_event
+
         return bar
 
+    # ======== Ações de janela ========
     def handle_close(self):
         """Salva no SQLite e no Supabase antes de fechar, em segundo plano."""
         try:
-            self.save_local_db_background()            
+            self.save_local_db_background()
         except Exception as e:
             print(f"⚠ Erro ao salvar antes de fechar: {e}")
         self.close()
-
-    def _unique_values(self, key):
-        """Retorna valores únicos de um campo específico da lista de clientes."""
-        return sorted({c.get(key, "").strip() for c in self.clients if c.get(key, "").strip()})
 
     def mouse_press_event(self, event):
         """Captura a posição inicial para permitir arrastar a janela."""
@@ -420,22 +491,37 @@ class ModernWindow(QMainWindow):
         menu = QFrame()
         menu.setFixedWidth(220)
         menu.setStyleSheet("background-color: #252d3c;")
+
         menu_layout = QVBoxLayout(menu)
 
-        # Botão para abrir diretamente a pesquisa de clientes
+        # Botão para abrir pesquisa de clientes
         self.btn_clientes = QPushButton("👤 Clientes")
         self.btn_clientes.setStyleSheet("""
-            QPushButton { background: none; color: white; padding: 12px; text-align: left; font-size: 15px; border: none; }
-            QPushButton:hover { background-color: #374157; border-radius: 5px; }
+            QPushButton {
+                background: none; color: white;
+                padding: 12px; text-align: left;
+                font-size: 15px; border: none;
+            }
+            QPushButton:hover {
+                background-color: #374157;
+                border-radius: 5px;
+            }
         """)
         self.btn_clientes.clicked.connect(self.show_search_screen)
         menu_layout.addWidget(self.btn_clientes)
 
-        # Botão para Funções Extras
+        # Botão para funções extras
         self.btn_extras = QPushButton("⚙️ Funções Extras")
         self.btn_extras.setStyleSheet("""
-            QPushButton { background: none; color: white; padding: 12px; text-align: left; font-size: 15px; border: none; }
-            QPushButton:hover { background-color: #374157; border-radius: 5px; }
+            QPushButton {
+                background: none; color: white;
+                padding: 12px; text-align: left;
+                font-size: 15px; border: none;
+            }
+            QPushButton:hover {
+                background-color: #374157;
+                border-radius: 5px;
+            }
         """)
         self.btn_extras.clicked.connect(self.show_extras_screen)
         menu_layout.addWidget(self.btn_extras)
@@ -443,26 +529,52 @@ class ModernWindow(QMainWindow):
         menu_layout.addStretch()
         return menu
 
+    # ======== Formulário de Cliente ========
     def open_client_form(self, initial_data=None, edit_index=None):
         def callback(data):
-            if edit_index is None:
-                # Novo cliente
-                self.clients.append(data)
-            else:
-                # Edita cliente
-                self.clients[edit_index] = data
+            # Monta tupla exatamente no formato da tabela local/Supabase:
+            # (id_cliente, nome, cpf, telefone, endereco, cidade, indicacao)
+            cliente_tuple = (
+                None,  # id_cliente autoincrement
+                data.get("Nome", ""),
+                data.get("CPF", ""),
+                data.get("Telefone", ""),
+                data.get("Endereço", ""),
+                data.get("Cidade", ""),
+                data.get("Indicação", "")
+            )
 
-            # Salva no SQLite sempre que cadastrar/editar
+            print("DEBUG - Cliente salvo na memória:", cliente_tuple)
+
+            if edit_index is None:
+                self.clients.append(cliente_tuple)
+            else:
+                self.clients[edit_index] = cliente_tuple
+
+            # Salva no banco local
             self.save_local_db()
 
-            # Atualiza a tela de pesquisa, se aberta
+            # Atualiza a tabela da interface se existir
             if hasattr(self, "table_results"):
                 self.rebuild_search_filters()
                 self.apply_search_filters()
 
-        cities = self._unique_values("Cidade")
+
+        # monta lista de cidades a partir da memória
+        try:
+            idx_cidade = 5  # agora 'cidade' é índice 5
+            cities = sorted({
+                str(c[idx_cidade]).strip()
+                for c in self.clients
+                if len(c) > idx_cidade and str(c[idx_cidade]).strip()
+            })
+        except Exception as e:
+            print(f"ℹ Falha ao montar lista de cidades: {e}")
+            cities = []
+
         self.form = ClientForm(callback, initial_data=initial_data, cities=cities)
         self.form.show()
+
 
     # ======== Tela de Pesquisa ========
     def show_search_screen(self):
@@ -480,13 +592,15 @@ class ModernWindow(QMainWindow):
         btn_add = QPushButton("➕ Novo Cliente")
         btn_add.setStyleSheet("""
             QPushButton {
-                background-color: #2ecc71; color: white; padding: 6px 10px; font-size: 12px; border-radius: 6px;
+                background-color: #2ecc71; color: white;
+                padding: 6px 10px; font-size: 12px; border-radius: 6px;
             }
             QPushButton:hover { background-color: #27ae60; }
         """)
         btn_add.setFixedWidth(max(120, self.width() // 8))
         btn_add.clicked.connect(self.open_client_form)
         top_row.addWidget(btn_add)
+
         layout.addLayout(top_row)
 
         # Linha de filtros com alinhamento inferior
@@ -502,8 +616,14 @@ class ModernWindow(QMainWindow):
         self.cb_nome = QComboBox()
         self.cb_nome.setEditable(False)
         self.cb_nome.setStyleSheet("""
-            QComboBox { background-color:#2c3446; color:white; padding:6px; border-radius:6px; }
-            QComboBox QAbstractItemView { background-color:#2c3446; color:white; selection-background-color:#374157; }
+            QComboBox {
+                background-color:#2c3446; color:white;
+                padding:6px; border-radius:6px;
+            }
+            QComboBox QAbstractItemView {
+                background-color:#2c3446; color:white;
+                selection-background-color:#374157;
+            }
         """)
         self.cb_nome.setPlaceholderText("Selecione um nome")
         box_nome.addWidget(self.cb_nome)
@@ -518,8 +638,14 @@ class ModernWindow(QMainWindow):
         self.cb_cidade = QComboBox()
         self.cb_cidade.setEditable(False)
         self.cb_cidade.setStyleSheet("""
-            QComboBox { background-color:#2c3446; color:white; padding:6px; border-radius:6px; }
-            QComboBox QAbstractItemView { background-color:#2c3446; color:white; selection-background-color:#374157; }
+            QComboBox {
+                background-color:#2c3446; color:white;
+                padding:6px; border-radius:6px;
+            }
+            QComboBox QAbstractItemView {
+                background-color:#2c3446; color:white;
+                selection-background-color:#374157;
+            }
         """)
         self.cb_cidade.setPlaceholderText("Selecione uma cidade")
         box_cidade.addWidget(self.cb_cidade)
@@ -534,18 +660,25 @@ class ModernWindow(QMainWindow):
         self.cb_indicacao = QComboBox()
         self.cb_indicacao.setEditable(False)
         self.cb_indicacao.setStyleSheet("""
-            QComboBox { background-color:#2c3446; color:white; padding:6px; border-radius:6px; }
-            QComboBox QAbstractItemView { background-color:#2c3446; color:white; selection-background-color:#374157; }
+            QComboBox {
+                background-color:#2c3446; color:white;
+                padding:6px; border-radius:6px;
+            }
+            QComboBox QAbstractItemView {
+                background-color:#2c3446; color:white;
+                selection-background-color:#374157;
+            }
         """)
         self.cb_indicacao.setPlaceholderText("Selecione uma indicação")
         box_ind.addWidget(self.cb_indicacao)
         filters_row.addLayout(box_ind)
 
-        # Botões Buscar / Limpar alinhados pela base
+        # Botões Buscar / Limpar
         btn_buscar = QPushButton("Buscar")
         btn_buscar.setStyleSheet("""
             QPushButton {
-                background-color:#3498db; color:white; padding:8px 12px; border-radius:8px;
+                background-color:#3498db; color:white;
+                padding:8px 12px; border-radius:8px;
             }
             QPushButton:hover { background-color:#2980b9; }
         """)
@@ -555,7 +688,8 @@ class ModernWindow(QMainWindow):
         btn_limpar = QPushButton("Limpar")
         btn_limpar.setStyleSheet("""
             QPushButton {
-                background-color:#34495e; color:white; padding:8px 12px; border-radius:8px;
+                background-color:#34495e; color:white;
+                padding:8px 12px; border-radius:8px;
             }
             QPushButton:hover { background-color:#2c3e50; }
         """)
@@ -571,8 +705,14 @@ class ModernWindow(QMainWindow):
         )
         self.table_results.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_results.setStyleSheet("""
-            QTableWidget { background-color: #2c3446; color: white; border: 1px solid #3a455b; }
-            QHeaderView::section { background-color: #374157; color: white; padding: 6px; border: none; }
+            QTableWidget {
+                background-color: #2c3446; color: white;
+                border: 1px solid #3a455b;
+            }
+            QHeaderView::section {
+                background-color: #374157; color: white;
+                padding: 6px; border: none;
+            }
         """)
         layout.addWidget(self.table_results)
 
@@ -582,13 +722,26 @@ class ModernWindow(QMainWindow):
         self.rebuild_search_filters()
         self.apply_search_filters()
 
+    # ======== Filtros de pesquisa ========
     def rebuild_search_filters(self):
         """Atualiza as listas suspensas com valores únicos existentes nos clientes."""
-        def unique_values(key):
-            vals = sorted(set([c.get(key, "").strip() for c in self.clients if c.get(key, "").strip()]))
-            return [""] + vals  # primeiro item vazio = sem filtro
+        # NOVOS ÍNDICES com base na nova tupla:
+        # (0:id_cliente, 1:nome, 2:cpf, 3:telefone, 4:endereco, 5:cidade, 6:indicacao)
+        campos = {
+            "Nome": 1,
+            "Cidade": 5,
+            "Indicação": 6
+        }
 
-        # salva seleções atuais para tentar manter (opcional)
+        def unique_values(key):
+            idx = campos.get(key)
+            if idx is None:
+                return [""]
+            vals = sorted(set([
+                str(c[idx]).strip() for c in self.clients if str(c[idx]).strip()
+            ]))
+            return [""] + vals
+
         cur_nome = self.cb_nome.currentText() if self.cb_nome.count() else ""
         cur_cidade = self.cb_cidade.currentText() if self.cb_cidade.count() else ""
         cur_ind = self.cb_indicacao.currentText() if self.cb_indicacao.count() else ""
@@ -600,10 +753,10 @@ class ModernWindow(QMainWindow):
         self.cb_indicacao.clear()
         self.cb_indicacao.addItems(unique_values("Indicação"))
 
-        # tenta restaurar seleções anteriores
         self._set_combobox_if_present(self.cb_nome, cur_nome)
         self._set_combobox_if_present(self.cb_cidade, cur_cidade)
         self._set_combobox_if_present(self.cb_indicacao, cur_ind)
+
 
     def _set_combobox_if_present(self, cb: QComboBox, value: str):
         idx = cb.findText(value)
@@ -627,128 +780,111 @@ class ModernWindow(QMainWindow):
 
         filtered = []
         for c in self.clients:
-            ok_nome = (c.get("Nome", "").lower() == nome) if nome else True
-            ok_cidade = (c.get("Cidade", "").lower() == cidade) if cidade else True
-            ok_ind = (c.get("Indicação", "").lower() == indicacao) if indicacao else True
+            # c = (id_cliente, nome, cpf, telefone, endereco, cidade, indicacao)
+            ok_nome = (c[1].strip().lower() == nome) if nome else True
+            ok_cidade = (c[5].strip().lower() == cidade) if cidade else True
+            ok_ind = (c[6].strip().lower() == indicacao) if indicacao else True
             if ok_nome and ok_cidade and ok_ind:
                 filtered.append(c)
 
-        # Desconecta temporariamente para evitar salvamento ao atualizar a tabela
+        # Evita disparar handle_table_edit durante a repopulação
         if self.table_results.receivers("itemChanged(QTableWidgetItem*)") > 0:
             self.table_results.itemChanged.disconnect(self.handle_table_edit)
 
         self.table_results.setRowCount(0)
-        
+
         for c in filtered:
             row = self.table_results.rowCount()
             self.table_results.insertRow(row)
 
-            # Coluna 0 - Nome (bloqueada para edição)
-            item_nome = QTableWidgetItem(c.get("Nome", ""))
+            # Cabeçalhos visuais mantidos:
+            # ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
+
+            # Nome (não editável)
+            item_nome = QTableWidgetItem(c[1])
             item_nome.setFlags(item_nome.flags() & ~Qt.ItemIsEditable)
             self.table_results.setItem(row, 0, item_nome)
 
-            # Coluna 1 - CPF (bloqueada para edição)
-            item_cpf = QTableWidgetItem(c.get("CPF", ""))
+            # CPF (não editável)
+            item_cpf = QTableWidgetItem(c[2])
             item_cpf.setFlags(item_cpf.flags() & ~Qt.ItemIsEditable)
             self.table_results.setItem(row, 1, item_cpf)
 
-            # Colunas editáveis
-            self.table_results.setItem(row, 2, QTableWidgetItem(c.get("Endereço", "")))
-            self.table_results.setItem(row, 3, QTableWidgetItem(c.get("Cidade", "")))
-            self.table_results.setItem(row, 4, QTableWidgetItem(c.get("Telefone", "")))
+            # Endereço (editável) -> índice 4
+            self.table_results.setItem(row, 2, QTableWidgetItem(c[4]))
 
-            # Coluna 5 - Indicação (bloqueada para edição)
-            item_indicacao = QTableWidgetItem(c.get("Indicação", ""))
+            # Cidade (editável) -> índice 5
+            self.table_results.setItem(row, 3, QTableWidgetItem(c[5]))
+
+            # Telefone (editável) -> índice 3
+            self.table_results.setItem(row, 4, QTableWidgetItem(c[3]))
+
+            # Indicação (não editável) -> índice 6
+            item_indicacao = QTableWidgetItem(c[6])
             item_indicacao.setFlags(item_indicacao.flags() & ~Qt.ItemIsEditable)
             self.table_results.setItem(row, 5, item_indicacao)
-        # Reconecta evento de edição de célula
+
         self.table_results.itemChanged.connect(self.handle_table_edit)
 
 
+    # ======== Edição inline da tabela ========
     def handle_table_edit(self, item):
-        """Evento disparado quando uma célula da tabela é editada pelo usuário."""
+        """Atualiza os dados do cliente na lista quando uma célula da tabela é editada."""
         row = item.row()
         col = item.column()
-        col_names = ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação"]
+        novo_valor = item.text().strip()
 
-        if row < len(self.clients) and col < len(col_names):
-            novo_valor = item.text()
-            valor_antigo = self.clients[row].get(col_names[col], "")
+        # Colunas visuais -> campos reais (índices na tupla)
+        # Tabela mostra: 0 Nome, 1 CPF, 2 Endereço, 3 Cidade, 4 Telefone, 5 Indicação
+        # Tupla real: (0:id_cliente, 1:nome, 2:cpf, 3:telefone, 4:endereco, 5:cidade, 6:indicacao)
+        mapeamento = {
+            2: 4,  # Endereço
+            3: 5,  # Cidade
+            4: 3,  # Telefone
+            # 0 Nome, 1 CPF, 5 Indicação estão não editáveis (bloqueados)
+        }
 
-            # Só salva se realmente houve alteração
-            if novo_valor != valor_antigo:
-                self.clients[row][col_names[col]] = novo_valor
-                self.save_local_db_background()  # salva em segundo plano
+        if col not in mapeamento:
+            return  # coluna não editável
 
+        idx_real = mapeamento[col]
+        cliente = self.clients[row]
+        valor_antigo = cliente[idx_real]
+
+        if novo_valor != valor_antigo:
+            cliente_atualizado = list(cliente)
+            cliente_atualizado[idx_real] = novo_valor
+            self.clients[row] = tuple(cliente_atualizado)
+            self.save_local_db()
+
+
+    # ======== Banco Local ========
     def load_local_db(self):
-        """Carrega clientes do banco local SQLite para self.clients."""
+        """Carrega dados locais de clientes, empréstimos, parcelas e movimentações."""
         try:
-            conn = sqlite3.connect(get_local_db_path())
-            cur = conn.cursor()
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS clientes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Nome TEXT,
-                    CPF TEXT,
-                    Endereço TEXT,
-                    Cidade TEXT,
-                    Telefone TEXT,
-                    Indicação TEXT
-                )
-            """)
-            conn.commit()
+            self.clients = carregar_clientes()
+            self.emprestimos = carregar_emprestimos()
+            self.parcelas = carregar_parcelas()
+            self.movimentacoes = carregar_movimentacoes()
 
-            cur.execute("SELECT Nome, CPF, Endereço, Cidade, Telefone, Indicação FROM clientes")
-            rows = cur.fetchall()
-
-            self.clients = [
-                {
-                    "Nome": row[0] or "",
-                    "CPF": row[1] or "",
-                    "Endereço": row[2] or "",
-                    "Cidade": row[3] or "",
-                    "Telefone": row[4] or "",
-                    "Indicação": row[5] or ""
-                }
-                for row in rows
-            ]
-
-            conn.close()
-            print(f"✅ {len(self.clients)} clientes carregados do banco local.")
+            print(f"✅ {len(self.clients)} clientes carregados.")
+            print(f"✅ {len(self.emprestimos)} empréstimos carregados.")
+            print(f"✅ {len(self.parcelas)} parcelas carregadas.")
+            print(f"✅ {len(self.movimentacoes)} movimentações carregadas.")
         except Exception as e:
             print(f"⚠ Erro ao carregar banco local: {e}")
 
+
     def save_local_db(self):
-        """Salva todos os clientes de self.clients no banco local SQLite."""
+        """Salva todos os dados locais no banco."""
         try:
-            conn = sqlite3.connect(get_local_db_path())
-            cur = conn.cursor()
-
-            # Limpa todos os registros
-            cur.execute("DELETE FROM clientes")
-
-            # Insere todos novamente
-            for c in self.clients:
-                cur.execute("""
-                    INSERT INTO clientes (Nome, CPF, Endereço, Cidade, Telefone, Indicação)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (
-                    c.get("Nome", ""),
-                    c.get("CPF", ""),
-                    c.get("Endereço", ""),
-                    c.get("Cidade", ""),
-                    c.get("Telefone", ""),
-                    c.get("Indicação", "")
-                ))
-
-            conn.commit()
-            conn.close()
+            salvar_clientes(self.clients)
+            salvar_emprestimos()
+            salvar_parcelas()
+            salvar_movimentacoes()
             print("💾 Banco local atualizado com sucesso.")
         except Exception as e:
             print(f"⚠ Erro ao salvar no banco local: {e}")
-
-
 
     # ======== Utilidades ========
     def _replace_main_content(self, new_widget: QWidget):
@@ -757,11 +893,13 @@ class ModernWindow(QMainWindow):
         self.main_content_layout.addWidget(new_widget)
 
     def center(self):
+        """Centraliza a janela na tela."""
         frame = self.frameGeometry()
         screen = QApplication.primaryScreen().availableGeometry().center()
         frame.moveCenter(screen)
         self.move(frame.topLeft())
 
+    # ======== Tela de Funções Extras ========
     def show_extras_screen(self):
         """Exibe uma tela de funções extras com opção de backup em nuvem."""
         self.extras_widget = QWidget()
@@ -772,7 +910,6 @@ class ModernWindow(QMainWindow):
         title = QLabel("⚙️ Funções Extras")
         title.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
         layout.addWidget(title)
-
         layout.addSpacing(20)
 
         # Mensagem de status
@@ -780,29 +917,29 @@ class ModernWindow(QMainWindow):
         self.status_label.setStyleSheet("color: #ccc; font-size: 16px;")
         self.status_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.status_label)
-
         layout.addSpacing(20)
 
         # Botão de backup
         btn_backup = QPushButton("☁️ Backup em nuvem")
         btn_backup.setStyleSheet("""
             QPushButton {
-                background-color: #3498db; color: white; padding: 10px;
-                border-radius: 8px; font-size: 14px; font-weight: bold;
+                background-color: #3498db; color: white;
+                padding: 10px; border-radius: 8px;
+                font-size: 14px; font-weight: bold;
             }
             QPushButton:hover { background-color: #2980b9; }
         """)
         btn_backup.clicked.connect(self._backup_em_nuvem)
         layout.addWidget(btn_backup, alignment=Qt.AlignCenter)
-
         layout.addSpacing(20)
 
         # Botão para baixar dados do Supabase
         btn_download = QPushButton("📥 Carregar dados da nuvem")
         btn_download.setStyleSheet("""
             QPushButton {
-                background-color: #f39c12; color: white; padding: 10px;
-                border-radius: 8px; font-size: 14px; font-weight: bold;
+                background-color: #f39c12; color: white;
+                padding: 10px; border-radius: 8px;
+                font-size: 14px; font-weight: bold;
             }
             QPushButton:hover { background-color: #d68910; }
         """)
@@ -811,64 +948,76 @@ class ModernWindow(QMainWindow):
 
         self._replace_main_content(self.extras_widget)
 
-
-    # Método separado para a ação de download
+    # ======== Download do Supabase ========
     def acao_download_supabase(self):
+        """Baixa dados da nuvem (Supabase) e atualiza a interface."""
         reply = QMessageBox.question(
             self,
             "Confirmação",
             "⚠ Esta ação pode gerar a exclusão de dados locais.\n\nTem certeza que deseja prosseguir?",
             QMessageBox.Yes | QMessageBox.Cancel
         )
-
         if reply != QMessageBox.Yes:
             print("ℹ Operação de download cancelada pelo usuário.")
             return
 
-        if baixar_do_supabase():
+        # 🔹 Sincroniza dados de cada módulo
+        try:
+            sincronizar_clientes_download()
+            sincronizar_emprestimos_download()
+            sincronizar_parcelas_download()
+            sincronizar_movimentacoes_download()
+
             self.load_local_db()
-            self.show_search_screen()  # Vai para tela de busca
+            self.show_search_screen()
             self.rebuild_search_filters()
             self.apply_search_filters()
+
             print("✅ Dados do Supabase carregados e exibidos na tela de busca.")
-        else:
-            print("⚠ Erro ao baixar dados do Supabase.")
+        except Exception as e:
+            print(f"⚠ Erro ao baixar dados do Supabase: {e}")
 
-
-
+    # ======== Upload / Backup na nuvem ========
     def _backup_em_nuvem(self):
         """Executa salvamento local e em nuvem em segundo plano, com confirmação."""
-        
         reply = QMessageBox.question(
             self,
             "Confirmação",
             "⚠ Esta ação pode gerar a exclusão de dados da nuvem.\n\nTem certeza que deseja prosseguir?",
             QMessageBox.Yes | QMessageBox.Cancel
         )
-
         if reply != QMessageBox.Yes:
             print("ℹ Upload para nuvem cancelado pelo usuário.")
             return
 
         self.status_label.setText("💾 Salvando em nuvem...")
 
-        # Salva no SQLite primeiro
+        # 🔹 Salva no SQLite primeiro
         self.save_local_db_background()
 
-        # Depois salva no Supabase
-        salvar_no_supabase()
+        # 🔹 Depois envia cada tipo de dado para o Supabase
+        try:
+            sincronizar_clientes_upload()
+            sincronizar_emprestimos_upload()
+            sincronizar_parcelas_upload()
+            sincronizar_movimentacoes_upload()
 
-        # Atualiza mensagem de sucesso após 2s
-        QTimer.singleShot(
-            2000,
-            lambda: self.status_label.setText("✅ Pronto, tudo salvo. Pode ficar tranquilo!")
-        )
+            QTimer.singleShot(
+                2000,
+                lambda: self.status_label.setText("✅ Pronto, tudo salvo. Pode ficar tranquilo!")
+            )
+        except Exception as e:
+            print(f"⚠ Erro ao salvar na nuvem: {e}")
+            self.status_label.setText("⚠ Erro ao salvar na nuvem.")
 
     def save_local_db_background(self):
         """Salva o banco local em segundo plano."""
         worker = SaveWorker(self.save_local_db, "Salvando no SQLite")
         QThreadPool.globalInstance().start(worker)
 
+# =====================================================================
+# SaveWorker (Thread para salvar em segundo plano)
+# =====================================================================
 class SaveWorker(QRunnable):
     def __init__(self, save_func, descricao="Salvando dados..."):
         super().__init__()
@@ -884,11 +1033,13 @@ class SaveWorker(QRunnable):
             print(f"⚠ Erro ao executar '{self.descricao}': {e}")
 
 
+# =====================================================================
+# Execução principal
+# =====================================================================
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    verificar_tabelas()
     main_window = ModernWindow()
     splash = SplashScreen(parent=main_window)
     splash.show()
     sys.exit(app.exec())
-
-    #nota
