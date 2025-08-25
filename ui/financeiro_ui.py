@@ -87,7 +87,7 @@ class FinanceiroWindow(QWidget):
         btn_novo.clicked.connect(self.open_novo_emprestimo)
         container.addWidget(btn_novo)
 
-        # Tabela de empréstimos (placeholder)
+        # Tabela de empréstimos
         tabela = QTableWidget(0, 3)
         tabela.setHorizontalHeaderLabels(["Data", "Valor", "Status"])
         tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -111,11 +111,21 @@ class FinanceiroWindow(QWidget):
 
         for linha, (data, valor, status) in enumerate(dados_fake):
             tabela.insertRow(linha)
-            tabela.setItem(linha, 0, QTableWidgetItem(data))
-            tabela.setItem(linha, 1, QTableWidgetItem(valor))
-            item_status = QTableWidgetItem(status)
 
-            # Destacar status em cores
+            # Data (somente leitura)
+            item_data = QTableWidgetItem(data)
+            item_data.setFlags(item_data.flags() & ~Qt.ItemIsEditable)
+            tabela.setItem(linha, 0, item_data)
+
+            # Valor (somente leitura)
+            item_valor = QTableWidgetItem(valor)
+            item_valor.setFlags(item_valor.flags() & ~Qt.ItemIsEditable)
+            tabela.setItem(linha, 1, item_valor)
+
+            # Status (somente leitura + cor)
+            item_status = QTableWidgetItem(status)
+            item_status.setFlags(item_status.flags() & ~Qt.ItemIsEditable)
+
             if status == "Atrasado":
                 item_status.setForeground(Qt.red)
             elif status == "Quitado":
@@ -125,8 +135,29 @@ class FinanceiroWindow(QWidget):
 
             tabela.setItem(linha, 2, item_status)
 
+        # 🔹 Conectar duplo clique para abrir parcelas
+        tabela.cellDoubleClicked.connect(lambda row, col: self.abrir_parcelas(row))
+        self.tabela_emprestimos = tabela
+
         container.addWidget(tabela)
         self._set_content(frame)
+
+
+    def abrir_parcelas(self, row):
+        """Abre a janela de parcelas do empréstimo selecionado."""
+        # 🔹 Aqui vamos simular dados de parcelas (por enquanto fixos)
+        emprestimo = {
+            "id": row + 1,
+            "parcelas": [
+                (1, "100,00", "01/09/2024", "Não", ""),
+                (2, "100,00", "01/10/2024", "Não", ""),
+                (3, "100,00", "01/11/2024", "Não", ""),
+            ]
+        }
+
+        from ui.parcelas_ui import ParcelasWindow
+        self.parcelas_window = ParcelasWindow(emprestimo)
+        self.parcelas_window.show()
 
     def _set_content(self, widget):
         """Substitui o conteúdo da área central."""
@@ -138,9 +169,19 @@ class FinanceiroWindow(QWidget):
 
     def open_novo_emprestimo(self):
         from ui.emprestimos_ui import EmprestimoForm
+        from ui.parcelas_ui import ParcelasWindow
 
         def callback(data):
             print("Novo empréstimo cadastrado:", data)
+
+            # Abre a tela de parcelas com os dados reais
+            self.parcelas_window = ParcelasWindow({
+                "id": 999,  # futuramente será ID do banco
+                "capital": data["capital"],
+                "juros": data["juros"],
+                "parcelas": data["parcelas"]
+            })
+            self.parcelas_window.show()
 
         self.form_emprestimo = EmprestimoForm(callback)
         self.form_emprestimo.show()
