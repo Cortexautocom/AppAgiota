@@ -1,13 +1,11 @@
 # 🔧 Sistema e banco
 import os, sys
-import re
-import sqlite3
-from datetime import datetime
-from ui.clientes_ui import ClientForm, DetailDialog
+
+from ui.clientes_ui import ClientForm
 # 🎨 Interface gráfica (PySide6)
 from PySide6.QtCore import (
     QRunnable, QThreadPool, Qt, QTimer,
-    QPropertyAnimation, QEasingCurve
+    
 )
 from ui.emprestimos_ui import EmprestimoForm
 
@@ -15,12 +13,13 @@ from ui.splash import SplashScreen
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-    QLabel, QPushButton, QFrame, QLineEdit, QTableWidget,
-    QTableWidgetItem, QHeaderView, QScrollArea, QComboBox,
-    QDialog, QGridLayout, QToolButton, QGraphicsDropShadowEffect,
-    QMessageBox
+    QLabel, QPushButton, QFrame, QTableWidget,
+    QTableWidgetItem, QHeaderView, QComboBox, QGraphicsDropShadowEffect,
+    QMessageBox, QToolTip
 )
-from PySide6.QtGui import QPixmap, QGuiApplication, QColor
+
+from PySide6.QtGui import QColor
+from ui.financeiro_ui import FinanceiroWindow
 
 # Config
 from config import criar_tabelas_local, get_local_db_path, verificar_tabelas
@@ -69,19 +68,6 @@ def resource_path(relative_path):
 
 
 print("📤 Iniciando operação no banco...")
-
-
-# =====================================================================
-# SplashScreen
-# =====================================================================
-
-# =====================================================================
-# ClientForm
-# =====================================================================
-
-# =====================================================================
-# DetailDialog
-# =====================================================================
 
 # =====================================================================
 # ModernWindow
@@ -563,43 +549,84 @@ class ModernWindow(QMainWindow):
 
             # Cabeçalhos visuais: ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação", "Ações"]
 
-            # Nome (não editável)
+            # Nome
             item_nome = QTableWidgetItem(c[1])
             item_nome.setFlags(item_nome.flags() & ~Qt.ItemIsEditable)
             self.table_results.setItem(row, 0, item_nome)
 
-            # CPF (não editável)
+            # CPF
             item_cpf = QTableWidgetItem(c[2])
             item_cpf.setFlags(item_cpf.flags() & ~Qt.ItemIsEditable)
             self.table_results.setItem(row, 1, item_cpf)
 
-            # Endereço (editável) -> índice 4
-            self.table_results.setItem(row, 2, QTableWidgetItem(c[4]))
+            # Endereço
+            item_endereco = QTableWidgetItem(c[4])
+            item_endereco.setFlags(item_endereco.flags() & ~Qt.ItemIsEditable)
+            self.table_results.setItem(row, 2, item_endereco)
 
-            # Cidade (editável) -> índice 5
-            self.table_results.setItem(row, 3, QTableWidgetItem(c[5]))
+            # Cidade
+            item_cidade = QTableWidgetItem(c[5])
+            item_cidade.setFlags(item_cidade.flags() & ~Qt.ItemIsEditable)
+            self.table_results.setItem(row, 3, item_cidade)
 
-            # Telefone (editável) -> índice 3
-            self.table_results.setItem(row, 4, QTableWidgetItem(c[3]))
+            # Telefone
+            item_tel = QTableWidgetItem(c[3])
+            item_tel.setFlags(item_tel.flags() & ~Qt.ItemIsEditable)
+            self.table_results.setItem(row, 4, item_tel)
 
-            # Indicação (não editável) -> índice 6
+            # Indicação
             item_indicacao = QTableWidgetItem(c[6])
             item_indicacao.setFlags(item_indicacao.flags() & ~Qt.ItemIsEditable)
             self.table_results.setItem(row, 5, item_indicacao)
+            
+            # Layout horizontal para os botões de ação
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0, 0, 0, 0)
+            action_layout.setSpacing(6)
 
-            # Botão 💰 de ações (abrir financeiro)
-            btn_finance = QPushButton("💰")
-            btn_finance.setFixedSize(40, 30)
-            btn_finance.setStyleSheet("""
+            # Botão 📑 Financeiro
+            btn_financeiro = QPushButton("📑")
+            btn_financeiro.setFixedSize(28, 28)
+            btn_financeiro.setToolTip("Financeiro")
+            btn_financeiro.setStyleSheet("""
                 QPushButton {
-                    background-color: #27ae60; color: white;
-                    border-radius: 6px; font-weight: bold;
+                    background: none; color: white;
+                    border: none; font-size: 16px;
                 }
-                QPushButton:hover { background-color: #2ecc71; }
+                QPushButton:hover {
+                    background-color: #3a455b;
+                    border-radius: 6px;
+                }
             """)
-            btn_finance.clicked.connect(lambda _, cliente=c: self.open_finance_form(cliente))
+            btn_financeiro.clicked.connect(lambda _, cliente=c: self.open_dados_cliente(cliente))
+            action_layout.addWidget(btn_financeiro)
 
-            self.table_results.setCellWidget(row, 6, btn_finance)
+            # Botão ✏️ Editar Cliente
+            btn_edit = QPushButton("✏️")
+            btn_edit.setFixedSize(28, 28)
+            btn_edit.setToolTip("Editar dados")
+            btn_edit.setStyleSheet("""
+                QPushButton {
+                    background: none; color: white;
+                    border: none; font-size: 16px;
+                }
+                QPushButton:hover {
+                    background-color: #3a455b;
+                    border-radius: 6px;
+                }
+            """)
+            btn_edit.clicked.connect(lambda _, cliente=c: self.open_client_form(initial_data={
+                "Nome": cliente[1],
+                "CPF": cliente[2],
+                "Telefone": cliente[3],
+                "Endereço": cliente[4],
+                "Cidade": cliente[5],
+                "Indicação": cliente[6]
+            }))
+            action_layout.addWidget(btn_edit)
+
+            self.table_results.setCellWidget(row, 6, action_widget)
 
         self.table_results.itemChanged.connect(self.handle_table_edit)
 
@@ -800,6 +827,12 @@ class ModernWindow(QMainWindow):
         """Salva o banco local em segundo plano."""
         worker = SaveWorker(self.save_local_db, "Salvando no SQLite")
         QThreadPool.globalInstance().start(worker)
+
+    def open_dados_cliente(self, client_data):
+        """Abre a tela financeira do cliente selecionado."""
+        self.finance_window = FinanceiroWindow(client_data)
+        self.finance_window.show()    
+
 
 # =====================================================================
 # SaveWorker (Thread para salvar em segundo plano)
