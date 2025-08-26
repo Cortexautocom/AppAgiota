@@ -1,4 +1,5 @@
 import sqlite3
+import uuid
 from supabase_utils import baixar_movimentacoes, enviar_movimentacoes
 from config import get_local_db_path
 
@@ -27,7 +28,10 @@ def salvar_movimentacoes():
     cursor = conn.cursor()
     cursor.execute("DELETE FROM movimentacoes")
     for mov in movimentacoes:
-        cursor.execute("INSERT INTO movimentacoes VALUES (?, ?, ?, ?, ?, ?)", mov)
+        # Se não tiver ID, gera um novo UUID
+        if not mov[0]:
+            mov = (str(uuid.uuid4()),) + mov[1:]
+        cursor.execute("INSERT INTO movimentacoes VALUES (?, ?, ?, ?, ?, ?, ?)", mov)
     conn.commit()
     conn.close()
 

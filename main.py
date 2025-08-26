@@ -1,5 +1,6 @@
 # 🔧 Sistema e banco
 import os, sys
+import uuid
 
 from ui.clientes_ui import ClientForm
 # 🎨 Interface gráfica (PySide6)
@@ -284,7 +285,7 @@ class ModernWindow(QMainWindow):
             # Monta tupla exatamente no formato da tabela local/Supabase:
             # (id_cliente, nome, cpf, telefone, endereco, cidade, indicacao)
             cliente_tuple = (
-                None,  # id_cliente autoincrement
+                str(uuid.uuid4()),  # gera UUID único no momento da criação
                 data.get("Nome", ""),
                 data.get("CPF", ""),
                 data.get("Telefone", ""),

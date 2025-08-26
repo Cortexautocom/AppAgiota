@@ -1,12 +1,16 @@
 from supabase import create_client, Client
 import sqlite3
 import os
+from dotenv import load_dotenv
+
 
 # ==========================
 # 🔹 CONFIGURAÇÕES DO SUPABASE
 # ==========================
-SUPABASE_URL = "https://zqvbgfqzdcejgxthdmht.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -22,19 +26,19 @@ TABELAS = {
     },
     "emprestimos": {
         "local": "emprestimos",
-        "remota": "Emprestimos",
+        "remota": "emprestimos",
         "campos": ["id_cliente", "valor", "data_inicio", "parcelas", "observacao"],
         "chave": "id"
     },
     "parcelas": {
         "local": "parcelas",
-        "remota": "Parcelas",
+        "remota": "parcelas",
         "campos": ["id_emprestimo", "numero", "valor", "vencimento", "pago", "data_pagamento"],
         "chave": "id"
     },
     "movimentacoes": {
         "local": "movimentacoes",
-        "remota": "Movimentacoes",
+        "remota": "movimentacoes",
         "campos": ["tipo", "valor", "data", "descricao", "id_relacionado", "origem"],
         "chave": "id"
     }
@@ -97,8 +101,14 @@ def enviar_tabela(nome, registros):
         # Filtra registros válidos
         registros_validos = []
         for r in registros:
-            if all(str(r.get(c, "")).strip() for c in config["campos"]):
-                registros_validos.append({c: r[c] for c in config["campos"]})
+            # 🔹 Se vier como tupla (SQLite), converte para dict
+            if isinstance(r, tuple):
+                r_dict = {c: r[i] for i, c in enumerate(config["campos"])}
+            else:
+                r_dict = r
+
+            if all(str(r_dict.get(c, "")).strip() for c in config["campos"]):
+                registros_validos.append(r_dict)
 
         if not registros_validos:
             print(f"⚠ Nenhum registro válido de {nome} para enviar.")
@@ -117,6 +127,7 @@ def enviar_tabela(nome, registros):
     except Exception as e:
         print(f"⚠ Erro ao enviar {nome}: {e}")
         return False
+
 
 # ==========================
 # 🔹 FUNÇÕES ESPECÍFICAS POR MÓDULO

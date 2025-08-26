@@ -1,4 +1,5 @@
 import sqlite3
+import uuid
 from supabase_utils import baixar_parcelas, enviar_parcelas
 from config import get_local_db_path
 
@@ -27,7 +28,10 @@ def salvar_parcelas():
     cursor = conn.cursor()
     cursor.execute("DELETE FROM parcelas")
     for parcela in parcelas:
-        cursor.execute("INSERT INTO parcelas VALUES (?, ?, ?, ?, ?, ?)", parcela)
+        # Se não tiver ID, gera um novo UUID
+        if not parcela[0]:
+            parcela = (str(uuid.uuid4()),) + parcela[1:]
+        cursor.execute("INSERT INTO parcelas VALUES (?, ?, ?, ?, ?, ?, ?)", parcela)
     conn.commit()
     conn.close()
 

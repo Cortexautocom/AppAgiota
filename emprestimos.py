@@ -1,4 +1,5 @@
 import sqlite3
+import uuid
 from supabase_utils import baixar_emprestimos, enviar_emprestimos
 from config import get_local_db_path
 
@@ -27,6 +28,9 @@ def salvar_emprestimos():
     cursor = conn.cursor()
     cursor.execute("DELETE FROM emprestimos")
     for emprestimo in emprestimos:
+        # Se não tiver ID, gera um novo UUID
+        if not emprestimo[0]:
+            emprestimo = (str(uuid.uuid4()),) + emprestimo[1:]
         cursor.execute("INSERT INTO emprestimos VALUES (?, ?, ?, ?, ?, ?)", emprestimo)
     conn.commit()
     conn.close()

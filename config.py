@@ -1,6 +1,7 @@
 import os
 import sqlite3
 
+
 def get_local_db_path():
     return os.path.join(os.path.dirname(__file__), "dados.db")
 
@@ -13,10 +14,10 @@ def criar_tabelas_local():
     conn = sqlite3.connect(get_local_db_path())
     cur = conn.cursor()
 
-    # 🔹 Tabela clientes (padronizada com Supabase)
+    # 🔹 Tabela clientes
     cur.execute("""
         CREATE TABLE IF NOT EXISTS clientes (
-            id_cliente INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_cliente TEXT PRIMARY KEY,
             nome TEXT,
             cpf TEXT,
             telefone TEXT,
@@ -29,8 +30,8 @@ def criar_tabelas_local():
     # 🔹 Tabela emprestimos
     cur.execute("""
         CREATE TABLE IF NOT EXISTS emprestimos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_cliente INTEGER,
+            id TEXT PRIMARY KEY,
+            id_cliente TEXT,
             valor TEXT,
             data_inicio TEXT,
             parcelas TEXT,
@@ -41,8 +42,8 @@ def criar_tabelas_local():
     # 🔹 Tabela parcelas
     cur.execute("""
         CREATE TABLE IF NOT EXISTS parcelas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_emprestimo INTEGER,
+            id TEXT PRIMARY KEY,
+            id_emprestimo TEXT,
             numero TEXT,
             valor TEXT,
             vencimento TEXT,
@@ -54,7 +55,7 @@ def criar_tabelas_local():
     # 🔹 Tabela movimentacoes
     cur.execute("""
         CREATE TABLE IF NOT EXISTS movimentacoes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             tipo TEXT,
             valor TEXT,
             data TEXT,
