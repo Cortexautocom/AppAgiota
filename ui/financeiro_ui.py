@@ -10,12 +10,13 @@ class FinanceiroWindow(QWidget):
     Tela financeira de um cliente.
     Contém menu lateral (Empréstimos, Garantias) e área de conteúdo.
     """
-    def __init__(self, client_data):
-        super().__init__()
+    def __init__(self, client_data, parent=None):
+        super().__init__(parent)
         self.client_data = client_data
         self.setWindowTitle(f"Financeiro - {client_data[1]}")
         self.setStyleSheet("background-color: #1c2331; color: white;")
         self.setFixedSize(900, 600)
+        
 
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -64,6 +65,7 @@ class FinanceiroWindow(QWidget):
         self.content.setAlignment(Qt.AlignCenter)
         self.content.setStyleSheet("font-size: 18px; color: #9fb0c7;")
         main_layout.addWidget(self.content)
+        self.show_emprestimos()
 
     # ==============================
     # Aba de Empréstimos
@@ -156,7 +158,7 @@ class FinanceiroWindow(QWidget):
         }
 
         from ui.parcelas_ui import ParcelasWindow
-        self.parcelas_window = ParcelasWindow(emprestimo)
+        self.parcelas_window = ParcelasWindow(emprestimo, parent=self)
         self.parcelas_window.show()
 
     def _set_content(self, widget):
@@ -183,7 +185,7 @@ class FinanceiroWindow(QWidget):
             })
             self.parcelas_window.show()
 
-        self.form_emprestimo = EmprestimoForm(callback)
+        self.form_emprestimo = EmprestimoForm(callback, parent=self)
         self.form_emprestimo.show()
 
     # ==============================

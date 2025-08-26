@@ -830,8 +830,11 @@ class ModernWindow(QMainWindow):
 
     def open_dados_cliente(self, client_data):
         """Abre a tela financeira do cliente selecionado."""
-        self.finance_window = FinanceiroWindow(client_data)
-        self.finance_window.show()    
+        self.finance_window = FinanceiroWindow(client_data, parent=self)
+        self.finance_window.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowMinimizeButtonHint)
+        self.finance_window.setAttribute(Qt.WA_DeleteOnClose)  # fecha de vez ao clicar no X
+        self.finance_window.show()
+          
 
 
 # =====================================================================

@@ -12,8 +12,9 @@ class EmprestimoForm(QWidget):
     Formulário de empréstimo.
     Campos: Valor principal, Juros, Qtde de parcelas, botão Gerar.
     """
-    def __init__(self, parent_callback, initial_data=None):
-        super().__init__()
+    def __init__(self, parent_callback, initial_data=None, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
         self.setWindowTitle("Novo Empréstimo")
         self.setFixedSize(400, 550)
         self.setStyleSheet("background-color: #1c2331; color: white;")

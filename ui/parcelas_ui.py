@@ -7,8 +7,9 @@ from PySide6.QtGui import QColor
 
 class ParcelasWindow(QWidget):
     """Janela para visualizar/editar parcelas de um empréstimo."""
-    def __init__(self, emprestimo):
-        super().__init__()
+    def __init__(self, emprestimo, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
         self.emprestimo = emprestimo
         self.setWindowTitle(f"Parcelas - Empréstimo {emprestimo['id']}")
         self.setFixedSize(650, 450)
