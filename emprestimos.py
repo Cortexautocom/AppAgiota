@@ -6,6 +6,7 @@ from config import get_local_db_path
 # Lista que vai guardar os empréstimos em memória
 emprestimos = []
 
+
 # 🔹 Carregar empréstimos do banco local
 def carregar_emprestimos():
     print("DEBUG - Carregando empréstimos do banco...")
@@ -21,7 +22,8 @@ def carregar_emprestimos():
     emprestimos = dados
     return dados
 
-# 🔹 Salvar empréstimos no banco local
+
+# 🔹 Salvar todos os empréstimos no banco local
 def salvar_emprestimos():
     global emprestimos
     conn = sqlite3.connect(get_local_db_path())
@@ -35,10 +37,30 @@ def salvar_emprestimos():
     conn.commit()
     conn.close()
 
+
+# 🔹 Criar e salvar um novo empréstimo
+def adicionar_emprestimo(id_cliente, valor, data_inicio, parcelas, observacao=""):
+    """
+    Cria um novo empréstimo com UUID e salva no banco.
+    Retorna o registro criado como tupla.
+    """
+    global emprestimos
+
+    novo_id = str(uuid.uuid4())
+    novo_emprestimo = (novo_id, id_cliente, valor, data_inicio, parcelas, observacao)
+
+    emprestimos.append(novo_emprestimo)
+    salvar_emprestimos()
+
+    print(f"✅ Novo empréstimo criado: {novo_emprestimo}")
+    return novo_emprestimo
+
+
 # 🔹 Baixar da nuvem
 def sincronizar_emprestimos_download():
     global emprestimos
     emprestimos = baixar_emprestimos()
+
 
 # 🔹 Enviar para a nuvem
 def sincronizar_emprestimos_upload():

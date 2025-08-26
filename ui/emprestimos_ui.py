@@ -12,7 +12,7 @@ class EmprestimoForm(QWidget):
     Formulário de empréstimo.
     Campos: Valor principal, Juros, Qtde de parcelas, botão Gerar.
     """
-    def __init__(self, parent_callback, initial_data=None, parent=None):
+    def __init__(self, parent_callback, id_cliente, initial_data=None, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
         self.setWindowTitle("Novo Empréstimo")
@@ -20,6 +20,7 @@ class EmprestimoForm(QWidget):
         self.setStyleSheet("background-color: #1c2331; color: white;")
 
         self.parent_callback = parent_callback
+        self.id_cliente = id_cliente 
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -128,7 +129,11 @@ class EmprestimoForm(QWidget):
             self.parcelas_layout.addWidget(lbl)
 
     def save_emprestimo(self):
-        """Envia os dados do empréstimo + parcelas para o callback."""
+        """Cria e salva o empréstimo e suas parcelas no banco local."""
+        import uuid
+        from emprestimos import emprestimos, salvar_emprestimos
+        from parcelas import parcelas as lista_parcelas, salvar_parcelas
+
         try:
             capital = float(self.inp_capital.text().replace(",", "."))
             juros = float(self.inp_juros.text().replace(",", "."))
@@ -140,18 +145,47 @@ class EmprestimoForm(QWidget):
         total = capital + juros
         valor_parcela = total / qtd if qtd > 0 else 0
 
-        # Gera lista de parcelas
-        parcelas = []
-        for i in range(1, qtd + 1):
-            parcelas.append((i, f"{valor_parcela:.2f}", f"01/{i:02d}/2025", "Não", ""))
+        # 🔹 Criar o empréstimo com UUID
+        emprestimo_id = str(uuid.uuid4())
+        novo_emprestimo = (
+            emprestimo_id,
+            self.id_cliente,  # 🔹 recebido no construtor EmprestimoForm
+            str(total),
+            "01/09/2025",  # TODO: usar data atual ou escolhida
+            str(qtd),
+            ""
+        )
 
+        emprestimos.append(novo_emprestimo)
+        salvar_emprestimos()
+
+        # 🔹 Criar parcelas vinculadas ao empréstimo
+        novas_parcelas = []
+        for i in range(1, qtd + 1):
+            parcela_id = str(uuid.uuid4())
+            nova_parcela = (
+                parcela_id,
+                emprestimo_id,   # ✅ agora vincula corretamente ao empréstimo real
+                str(i),
+                f"{valor_parcela:.2f}",
+                f"01/{i:02d}/2025",  # TODO: calcular datas reais
+                "Não",
+                ""
+            )
+            novas_parcelas.append(nova_parcela)
+
+        salvar_parcelas(novas_parcelas)
+
+        # 🔹 Retorna para o callback
         data = {
+            "id": emprestimo_id,
             "capital": capital,
             "juros": juros,
             "qtd": qtd,
-            "parcelas": parcelas
+            "parcelas": novas_parcelas
         }
 
         self.parent_callback(data)
         self.close()
+
 

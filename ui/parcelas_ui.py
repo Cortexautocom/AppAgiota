@@ -1,18 +1,23 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QLabel, QCheckBox
+    QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView,
+    QLabel, QCheckBox, QPushButton
 )
 from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QColor
+import uuid
+
+from parcelas import parcelas, salvar_parcelas, carregar_parcelas_por_emprestimo
 
 
 class ParcelasWindow(QWidget):
     """Janela para visualizar/editar parcelas de um empréstimo."""
-    def __init__(self, emprestimo, parent=None):
+    def __init__(self, emprestimo, parent=None, on_save_callback=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
         self.emprestimo = emprestimo
+        self.on_save_callback = on_save_callback  # callback para atualizar Financeiro
+
         self.setWindowTitle(f"Parcelas - Empréstimo {emprestimo['id']}")
-        self.setFixedSize(650, 450)
+        self.setFixedSize(650, 500)
         self.setStyleSheet("background-color: #1c2331; color: white;")
 
         layout = QVBoxLayout(self)
@@ -37,8 +42,13 @@ class ParcelasWindow(QWidget):
         """)
         layout.addWidget(self.tabela)
 
-        # Preenche as parcelas recebidas
-        for linha, (num, valor, venc, pago, data_pag) in enumerate(emprestimo["parcelas"]):
+        # 🔹 Carregar parcelas reais do banco pelo ID do empréstimo
+        parcelas_do_emprestimo = carregar_parcelas_por_emprestimo(emprestimo["id"])
+
+        for linha, parcela in enumerate(parcelas_do_emprestimo):
+            # parcela = (id, id_emprestimo, numero, valor, vencimento, pago, data_pagamento)
+            _, _, num, valor, venc, pago, data_pag = parcela
+
             self.tabela.insertRow(linha)
             self.tabela.setItem(linha, 0, QTableWidgetItem(str(num)))
             self.tabela.setItem(linha, 1, QTableWidgetItem(f"R$ {valor}"))
@@ -65,6 +75,19 @@ class ParcelasWindow(QWidget):
         layout.addWidget(self.lbl_total_capital)
         layout.addWidget(self.lbl_total_juros)
 
+        # 🔹 Botão salvar parcelas
+        btn_salvar = QPushButton("💾 Salvar Parcelas")
+        btn_salvar.setStyleSheet("""
+            QPushButton {
+                background-color: #27ae60; color: white;
+                padding: 8px; border-radius: 6px; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #2ecc71; }
+        """)
+        btn_salvar.clicked.connect(self.salvar_modificacoes)
+        layout.addWidget(btn_salvar, alignment=Qt.AlignCenter)
+
+
     def atualizar_pagamento(self, row, state):
         """Marca ou desmarca pagamento e atualiza valores."""
         pago = (state == Qt.Checked)
@@ -76,28 +99,43 @@ class ParcelasWindow(QWidget):
         else:
             data_item.setText("")
 
-        self.calcular_totais()
 
-    def calcular_totais(self):
-        """Recalcula capital e juros pagos com base nas parcelas quitadas."""
-        # 🔹 Valores principais do empréstimo (para cálculo proporcional)
-        total_capital = self.emprestimo.get("capital", 1000)  # fallback para testes
-        total_juros = self.emprestimo.get("juros", 500)
-        total = total_capital + total_juros
+    def salvar_modificacoes(self):
+        """Salva as alterações feitas nas parcelas no banco local e fecha a janela."""
+        global parcelas
 
-        prop_juros = total_juros / total if total > 0 else 0
-        prop_capital = total_capital / total if total > 0 else 0
-
-        pago_capital = 0
-        pago_juros = 0
-
+        novas_parcelas = []
         for linha in range(self.tabela.rowCount()):
+            numero = self.tabela.item(linha, 0).text()
+            valor = self.tabela.item(linha, 1).text().replace("R$", "").strip()
+            venc = self.tabela.item(linha, 2).text()
             chk = self.tabela.cellWidget(linha, 3)
-            if chk and chk.isChecked():
-                valor = float(self.tabela.item(linha, 1).text().replace("R$", "").replace(",", "."))
-                pago_capital += valor * prop_capital
-                pago_juros += valor * prop_juros
+            pago = "Sim" if chk and chk.isChecked() else "Não"
+            data_pag = self.tabela.item(linha, 4).text()
 
-        # Atualiza labels
-        self.lbl_total_capital.setText(f"Capital pago: R$ {pago_capital:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        self.lbl_total_juros.setText(f"Juros pagos: R$ {pago_juros:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+            # Mantém o mesmo ID se já existir
+            if linha < len(parcelas):
+                parcela_id = parcelas[linha][0]
+            else:
+                parcela_id = str(uuid.uuid4())
+
+            novas_parcelas.append((
+                parcela_id,
+                self.emprestimo["id"],
+                numero,
+                valor,
+                venc,
+                pago,
+                data_pag
+            ))
+
+        parcelas[:] = novas_parcelas
+        salvar_parcelas()
+        print("✅ Parcelas salvas no banco local!")
+
+        # 🔹 Se tiver callback, chama para atualizar Financeiro
+        if self.on_save_callback:
+            self.on_save_callback()
+
+        # Fecha a janela
+        self.close()

@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 
 # Importa função para carregar empréstimos reais
 from emprestimos import carregar_emprestimos
+from parcelas import carregar_parcelas_por_emprestimo
 
 
 class FinanceiroWindow(QWidget):
@@ -151,9 +152,14 @@ class FinanceiroWindow(QWidget):
     def abrir_parcelas(self, row):
         """Abre a janela de parcelas do empréstimo selecionado."""
         emprestimo_id = self.tabela_emprestimos.item(row, 0).text()
+        parcelas = carregar_parcelas_por_emprestimo(emprestimo_id)
 
         from ui.parcelas_ui import ParcelasWindow
-        self.parcelas_window = ParcelasWindow({"id": emprestimo_id, "parcelas": []}, parent=self)
+        self.parcelas_window = ParcelasWindow(
+            {"id": emprestimo_id, "parcelas": parcelas},
+            parent=self,
+            on_save_callback=self.show_emprestimos
+        )
         self.parcelas_window.show()
 
     def _set_content(self, widget):
@@ -173,14 +179,15 @@ class FinanceiroWindow(QWidget):
 
             # Abre a tela de parcelas com os dados reais
             self.parcelas_window = ParcelasWindow({
-                "id": "novo",  # futuramente usaremos UUID real
+                "id": data["id"],   # ✅ agora vai o UUID correto
                 "capital": data["capital"],
                 "juros": data["juros"],
                 "parcelas": data["parcelas"]
             })
             self.parcelas_window.show()
 
-        self.form_emprestimo = EmprestimoForm(callback, parent=self)
+        self.form_emprestimo = EmprestimoForm(callback, id_cliente=self.client_data[0], parent=self)
+
         self.form_emprestimo.show()
 
     # ==============================
