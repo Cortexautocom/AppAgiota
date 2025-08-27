@@ -3,7 +3,6 @@ import sqlite3
 import os
 from dotenv import load_dotenv
 
-
 # ==========================
 # 🔹 CONFIGURAÇÕES DO SUPABASE
 # ==========================
@@ -20,26 +19,26 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 TABELAS = {
     "clientes": {
         "local": "clientes",
-        "remota": "clientes",  # nome da tabela remota no supabase
+        "remota": "clientes",
         "campos": ["id_cliente", "nome", "cpf", "telefone", "endereco", "cidade", "indicacao"],
         "chave": "id_cliente"
     },
     "emprestimos": {
         "local": "emprestimos",
         "remota": "emprestimos",
-        "campos": ["id_cliente", "valor", "data_inicio", "parcelas", "observacao"],
+        "campos": ["id", "id_cliente", "valor", "data_inicio", "parcelas", "observacao"],  # ✅ inclui id
         "chave": "id"
     },
     "parcelas": {
         "local": "parcelas",
         "remota": "parcelas",
-        "campos": ["id_emprestimo", "numero", "valor", "vencimento", "pago", "data_pagamento"],
+        "campos": ["id", "id_emprestimo", "numero", "valor", "vencimento", "pago", "data_pagamento"],  # ✅ inclui id
         "chave": "id"
     },
     "movimentacoes": {
         "local": "movimentacoes",
         "remota": "movimentacoes",
-        "campos": ["tipo", "valor", "data", "descricao", "id_relacionado", "origem"],
+        "campos": ["id", "tipo", "valor", "data", "descricao", "id_relacionado", "origem"],  # ✅ inclui id
         "chave": "id"
     }
 }
@@ -64,8 +63,7 @@ def baixar_tabela(nome):
         conn = sqlite3.connect(LOCAL_DB)
         cur = conn.cursor()
 
-        # 🔒 Agora não criamos mais a tabela.
-        # Se não existir, vai gerar erro e parar o fluxo (proteção contra sobrescrever Supabase).
+        # Confirma se a tabela existe
         cur.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{config['local']}'")
         if not cur.fetchone():
             raise RuntimeError(f"⚠ A tabela local '{config['local']}' não existe! Rode verificar_tabelas() antes.")
@@ -98,23 +96,22 @@ def enviar_tabela(nome, registros):
             print(f"⚠ Nenhum dado de {nome} para enviar.")
             return False
 
-        # Filtra registros válidos
         registros_validos = []
         for r in registros:
-            # 🔹 Se vier como tupla (SQLite), converte para dict
             if isinstance(r, tuple):
+                # Converte tupla para dict com todos os campos, inclusive o ID
                 r_dict = {c: r[i] for i, c in enumerate(config["campos"])}
             else:
                 r_dict = r
 
-            if all(str(r_dict.get(c, "")).strip() for c in config["campos"]):
+            # Aceita registros mesmo que algum campo seja vazio, desde que o ID exista
+            if r_dict.get(config["chave"]):
                 registros_validos.append(r_dict)
 
         if not registros_validos:
             print(f"⚠ Nenhum registro válido de {nome} para enviar.")
             return False
 
-        # Envia com upsert
         response = supabase.table(config["remota"]).upsert(
             registros_validos,
             on_conflict=[config["chave"]]
@@ -127,7 +124,6 @@ def enviar_tabela(nome, registros):
     except Exception as e:
         print(f"⚠ Erro ao enviar {nome}: {e}")
         return False
-
 
 # ==========================
 # 🔹 FUNÇÕES ESPECÍFICAS POR MÓDULO

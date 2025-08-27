@@ -28,14 +28,20 @@ def salvar_emprestimos():
     global emprestimos
     conn = sqlite3.connect(get_local_db_path())
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM emprestimos")
+
     for emprestimo in emprestimos:
-        # Se não tiver ID, gera um novo UUID
-        if not emprestimo[0]:
+        # Garante que o ID nunca será nulo
+        if not emprestimo[0] or emprestimo[0] == "null":
             emprestimo = (str(uuid.uuid4()),) + emprestimo[1:]
-        cursor.execute("INSERT INTO emprestimos VALUES (?, ?, ?, ?, ?, ?)", emprestimo)
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO emprestimos (id, id_cliente, valor, data_inicio, parcelas, observacao)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, emprestimo)
+
     conn.commit()
     conn.close()
+
 
 
 # 🔹 Criar e salvar um novo empréstimo
@@ -65,4 +71,11 @@ def sincronizar_emprestimos_download():
 # 🔹 Enviar para a nuvem
 def sincronizar_emprestimos_upload():
     global emprestimos
+    emprestimos_corrigidos = []
+    for e in emprestimos:
+        if not e[0] or e[0] == "null":
+            novo_id = str(uuid.uuid4())
+            e = (novo_id,) + e[1:]
+        emprestimos_corrigidos.append(e)
+    emprestimos = emprestimos_corrigidos
     enviar_emprestimos(emprestimos)
