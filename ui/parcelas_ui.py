@@ -72,7 +72,16 @@ class ParcelasWindow(QWidget):
         fonte_negrito.setBold(True)
 
         for linha, parcela in enumerate(parcelas_do_emprestimo):
-            _, _, num, valor, venc, _, _ = parcela
+            # parcela = (id, id_emprestimo, numero, valor, vencimento,
+            #            juros, desconto, parcela_atualizada, valor_pago,
+            #            residual, pago, data_pagamento)
+
+            (
+                _id, _id_emp, num, valor, venc,
+                juros, desconto, parcela_atual, valor_pago,
+                residual, pago, data_pag
+            ) = parcela
+
             self.tabela.insertRow(linha)
 
             # Nº parcela (não editável, negrito)
@@ -83,7 +92,7 @@ class ParcelasWindow(QWidget):
             self.tabela.setItem(linha, 0, item_num)
 
             # Vencimento
-            item_venc = QTableWidgetItem(venc)
+            item_venc = QTableWidgetItem(venc or "")
             item_venc.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(linha, 1, item_venc)
 
@@ -92,41 +101,42 @@ class ParcelasWindow(QWidget):
             item_valor.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(linha, 2, item_valor)
 
-            # Juros (azul)
-            item_juros = QTableWidgetItem("")
+            # Juros
+            item_juros = QTableWidgetItem(juros or "")
             item_juros.setTextAlignment(Qt.AlignCenter)
             item_juros.setForeground(QColor("#78ddff"))
             self.tabela.setItem(linha, 3, item_juros)
 
-            # Desconto (vermelho)
-            item_desc = QTableWidgetItem("")
+            # Desconto
+            item_desc = QTableWidgetItem(desconto or "")
             item_desc.setTextAlignment(Qt.AlignCenter)
             item_desc.setForeground(QColor("#ffaeae"))
             self.tabela.setItem(linha, 4, item_desc)
 
-            # Parcela Atualizada (não editável)
-            item_atual = QTableWidgetItem(f"R$ {valor}")
+            # Parcela Atualizada
+            item_atual = QTableWidgetItem(parcela_atual or f"R$ {valor}")
             item_atual.setTextAlignment(Qt.AlignCenter)
             item_atual.setFlags(item_atual.flags() & ~Qt.ItemIsEditable)
             self.tabela.setItem(linha, 5, item_atual)
 
             # Valor Pago
-            item_pago = QTableWidgetItem("")
+            item_pago = QTableWidgetItem(valor_pago or "")
             item_pago.setTextAlignment(Qt.AlignCenter)
             item_pago.setForeground(QColor("#78ddff"))
             self.tabela.setItem(linha, 6, item_pago)
 
-            # Residual (não editável, vermelho)
-            item_residual = QTableWidgetItem("")
+            # Residual
+            item_residual = QTableWidgetItem(residual or "")
             item_residual.setTextAlignment(Qt.AlignCenter)
             item_residual.setForeground(QColor("#ffaeae"))
             item_residual.setFlags(item_residual.flags() & ~Qt.ItemIsEditable)
             self.tabela.setItem(linha, 7, item_residual)
 
             # Data do Pag.
-            item_data = QTableWidgetItem("")
+            item_data = QTableWidgetItem(data_pag or "")
             item_data.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(linha, 8, item_data)
+
 
         # 🔹 Espaço visual entre tabela e totalizadores
         spacer = QFrame()
@@ -203,8 +213,9 @@ class ParcelasWindow(QWidget):
                 item.setText("")
 
     def salvar_modificacoes(self):
-        """Salva alterações no banco local."""
-        global parcelas
+        """Salva alterações no banco local e envia ao Supabase."""
+        from parcelas import salvar_parcelas, parcelas, sincronizar_parcelas_upload
+
         novas_parcelas = []
         for linha in range(self.tabela.rowCount() - 1):  # ignora totais
             numero = self.tabela.item(linha, 0).text()
@@ -228,15 +239,29 @@ class ParcelasWindow(QWidget):
                 numero,
                 valor,
                 venc,
+                juros,
+                desconto,
+                parcela_atual,
+                valor_pago,
+                residual,
                 "Não",
                 data_pag
             ))
 
+        # Atualiza lista global
         parcelas[:] = novas_parcelas
-        salvar_parcelas()
-        print("✅ Parcelas salvas no banco local!")
+
+        # Salva no SQLite
+        salvar_parcelas(parcelas)
+
+        # Envia ao Supabase
+        sincronizar_parcelas_upload()
+
+        print("✅ Parcelas salvas no banco local e na nuvem!")
 
         if self.on_save_callback:
             self.on_save_callback()
 
         self.close()
+
+

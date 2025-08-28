@@ -40,6 +40,7 @@ def criar_tabelas_local():
     """)
 
     # 🔹 Tabela parcelas
+        # 🔹 Tabela parcelas (atualizada com novos campos)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS parcelas (
             id TEXT PRIMARY KEY,
@@ -47,10 +48,16 @@ def criar_tabelas_local():
             numero TEXT,
             valor TEXT,
             vencimento TEXT,
+            juros TEXT,
+            desconto TEXT,
+            parcela_atualizada TEXT,
+            valor_pago TEXT,
+            residual TEXT,
             pago TEXT,
             data_pagamento TEXT
         )
     """)
+
 
     # 🔹 Tabela movimentacoes
     cur.execute("""

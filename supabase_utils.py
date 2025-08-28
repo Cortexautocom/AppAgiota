@@ -32,9 +32,14 @@ TABELAS = {
     "parcelas": {
         "local": "parcelas",
         "remota": "parcelas",
-        "campos": ["id", "id_emprestimo", "numero", "valor", "vencimento", "pago", "data_pagamento"],  # ✅ inclui id
+        "campos": [
+            "id", "id_emprestimo", "numero", "valor", "vencimento",
+            "juros", "desconto", "parcela_atualizada", "valor_pago",
+            "residual", "pago", "data_pagamento"
+        ],
         "chave": "id"
     },
+
     "movimentacoes": {
         "local": "movimentacoes",
         "remota": "movimentacoes",

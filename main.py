@@ -282,24 +282,31 @@ class ModernWindow(QMainWindow):
     # ======== Formulário de Cliente ========
     def open_client_form(self, initial_data=None, edit_index=None):
         def callback(data):
-            # Monta tupla exatamente no formato da tabela local/Supabase:
-            # (id_cliente, nome, cpf, telefone, endereco, cidade, indicacao)
-            cliente_tuple = (
-                str(uuid.uuid4()),  # gera UUID único no momento da criação
-                data.get("Nome", ""),
-                data.get("CPF", ""),
-                data.get("Telefone", ""),
-                data.get("Endereço", ""),
-                data.get("Cidade", ""),
-                data.get("Indicação", "")
-            )
+            if edit_index is None:  # ✅ Novo cliente
+                cliente_tuple = (
+                    str(uuid.uuid4()),  # gera UUID apenas na criação
+                    data.get("Nome", ""),
+                    data.get("CPF", ""),
+                    data.get("Telefone", ""),
+                    data.get("Endereço", ""),
+                    data.get("Cidade", ""),
+                    data.get("Indicação", "")
+                )
+                self.clients.append(cliente_tuple)
+            else:  # ✅ Edição de cliente existente
+                id_cliente = self.clients[edit_index][0]  # mantém o mesmo ID
+                cliente_tuple = (
+                    id_cliente,
+                    data.get("Nome", ""),
+                    data.get("CPF", ""),
+                    data.get("Telefone", ""),
+                    data.get("Endereço", ""),
+                    data.get("Cidade", ""),
+                    data.get("Indicação", "")
+                )
+                self.clients[edit_index] = cliente_tuple
 
             print("DEBUG - Cliente salvo na memória:", cliente_tuple)
-
-            if edit_index is None:
-                self.clients.append(cliente_tuple)
-            else:
-                self.clients[edit_index] = cliente_tuple
 
             # Salva no banco local
             self.save_local_db()
@@ -308,7 +315,6 @@ class ModernWindow(QMainWindow):
             if hasattr(self, "table_results"):
                 self.rebuild_search_filters()
                 self.apply_search_filters()
-
 
         # monta lista de cidades a partir da memória
         try:
@@ -324,7 +330,6 @@ class ModernWindow(QMainWindow):
 
         self.form = ClientForm(callback, initial_data=initial_data, cities=cities)
         self.form.show()
-
 
     # ======== Tela de Pesquisa ========
     def show_search_screen(self):
@@ -634,14 +639,17 @@ class ModernWindow(QMainWindow):
                     border-radius: 6px;
                 }
             """)
-            btn_edit.clicked.connect(lambda _, cliente=c: self.open_client_form(initial_data={
-                "Nome": cliente[1],
-                "CPF": cliente[2],
-                "Telefone": cliente[3],
-                "Endereço": cliente[4],
-                "Cidade": cliente[5],
-                "Indicação": cliente[6]
-            }))
+            btn_edit.clicked.connect(lambda _, cliente=c: self.open_client_form(
+                initial_data={
+                    "Nome": cliente[1],
+                    "CPF": cliente[2],
+                    "Telefone": cliente[3],
+                    "Endereço": cliente[4],
+                    "Cidade": cliente[5],
+                    "Indicação": cliente[6]
+                },
+                edit_index=next((i for i, cli in enumerate(self.clients) if cli[0] == cliente[0]), None)
+            ))
             action_layout.addWidget(btn_edit)
 
             self.table_results.setCellWidget(row, 6, action_widget)

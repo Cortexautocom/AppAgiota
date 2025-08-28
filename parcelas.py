@@ -54,8 +54,11 @@ def salvar_parcelas(lista=None):
             parcela = (str(uuid.uuid4()),) + parcela[1:]
 
         cursor.execute("""
-            INSERT OR REPLACE INTO parcelas (id, id_emprestimo, numero, valor, vencimento, pago, data_pagamento)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO parcelas (
+                id, id_emprestimo, numero, valor, vencimento,
+                juros, desconto, parcela_atualizada, valor_pago,
+                residual, pago, data_pagamento
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, parcela)
 
     conn.commit()
@@ -63,17 +66,18 @@ def salvar_parcelas(lista=None):
     print(f"✅ {len(parcelas)} parcelas salvas no banco local.")
 
 
-
-
 # 🔹 Criar ou atualizar uma parcela
-def adicionar_ou_atualizar_parcela(id_emprestimo, numero, valor, vencimento, pago="Não", data_pagamento=""):
+def adicionar_ou_atualizar_parcela(
+    id_emprestimo, numero, valor, vencimento,
+    juros="", desconto="", parcela_atualizada="",
+    valor_pago="", residual="", pago="Não", data_pagamento=""
+):
     """
-    Adiciona uma nova parcela (com UUID) ou atualiza se já existir no mesmo número/id_emprestimo.
-    Retorna a parcela criada/atualizada.
+    Adiciona ou atualiza parcela com todos os campos novos.
     """
     global parcelas
 
-    # Verifica se já existe essa parcela pelo número + id_emprestimo
+    # Verifica se já existe
     existente = None
     for p in parcelas:
         if p[1] == id_emprestimo and str(p[2]) == str(numero):
@@ -81,20 +85,27 @@ def adicionar_ou_atualizar_parcela(id_emprestimo, numero, valor, vencimento, pag
             break
 
     if existente:
-        # Atualiza dados mantendo o mesmo ID
         parcela_id = existente[0]
-        nova_parcela = (parcela_id, id_emprestimo, numero, valor, vencimento, pago, data_pagamento)
+        nova_parcela = (
+            parcela_id, id_emprestimo, numero, valor, vencimento,
+            juros, desconto, parcela_atualizada, valor_pago,
+            residual, pago, data_pagamento
+        )
         parcelas = [nova_parcela if p[0] == parcela_id else p for p in parcelas]
         print(f"🔄 Parcela atualizada: {nova_parcela}")
     else:
-        # Cria nova parcela
         parcela_id = str(uuid.uuid4())
-        nova_parcela = (parcela_id, id_emprestimo, numero, valor, vencimento, pago, data_pagamento)
+        nova_parcela = (
+            parcela_id, id_emprestimo, numero, valor, vencimento,
+            juros, desconto, parcela_atualizada, valor_pago,
+            residual, pago, data_pagamento
+        )
         parcelas.append(nova_parcela)
         print(f"✅ Nova parcela criada: {nova_parcela}")
 
     salvar_parcelas()
     return nova_parcela
+
 
 
 # 🔹 Baixar da nuvem
