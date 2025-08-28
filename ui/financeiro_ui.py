@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QFrame,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
 )
+from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
 
 # Importa função para carregar empréstimos reais
@@ -217,6 +218,7 @@ class FinanceiroWindow(QWidget):
 
         # Tabela de garantias
         self.tabela_garantias = QTableWidget(0, 3)
+        self.tabela_garantias.cellDoubleClicked.connect(self.editar_garantia)
         self.tabela_garantias.setSelectionMode(QAbstractItemView.NoSelection)
         self.tabela_garantias.setHorizontalHeaderLabels(["Nº", "Descrição e detalhes da garantia", "Valor"])
 
@@ -239,8 +241,9 @@ class FinanceiroWindow(QWidget):
         header.setSectionResizeMode(2, QHeaderView.Fixed)
         self.tabela_garantias.setColumnWidth(2, 150)
 
-        # Estilo
+        # Estilo                
         self.tabela_garantias.verticalHeader().setVisible(False)
+        self.tabela_garantias.setSelectionMode(QAbstractItemView.NoSelection)  # remove seleção rosa
         self.tabela_garantias.setStyleSheet("""
             QTableWidget {
                 background-color: #2c3446; color: white;
@@ -251,14 +254,19 @@ class FinanceiroWindow(QWidget):
         self.tabela_garantias.verticalHeader().setDefaultSectionSize(80)
 
         container.addWidget(self.tabela_garantias)
+
+        # 🔹 adiciona linha de total no final
+        self.add_totalizador()
+
         self._set_content(frame)
+
 
     def open_nova_garantia(self):
         from ui.garantias_ui import GarantiaForm
 
         def callback(data):
-            # número da garantia = total de linhas + 1
-            row = self.tabela_garantias.rowCount()
+            # número da garantia = total de linhas (menos 1 do totalizador) + 1
+            row = self.tabela_garantias.rowCount() - 1
             self.tabela_garantias.insertRow(row)
 
             num_item = QTableWidgetItem(str(row + 1))
@@ -272,5 +280,82 @@ class FinanceiroWindow(QWidget):
             val_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.tabela_garantias.setItem(row, 2, val_item)
 
+            # 🔹 atualiza o totalizador
+            self.atualizar_totalizador()
+
+
         self.form_garantia = GarantiaForm(callback, parent=self)
         self.form_garantia.show()
+    
+    def add_totalizador(self):
+        """Adiciona linha de totalizadores na tabela de garantias."""
+        row = self.tabela_garantias.rowCount()
+        self.tabela_garantias.insertRow(row)
+
+        # Coluna Nº (em branco)
+        item_num = QTableWidgetItem("")
+        item_num.setFlags(item_num.flags() & ~Qt.ItemIsEditable)
+        item_num.setBackground(QColor("#2c3446"))
+        self.tabela_garantias.setItem(row, 0, item_num)
+
+        # Coluna descrição = "TOTAL"
+        item_desc = QTableWidgetItem("TOTAL")
+        item_desc.setFlags(item_desc.flags() & ~Qt.ItemIsEditable)
+        item_desc.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        item_desc.setBackground(QColor("#2c3446"))
+        font = item_desc.font()
+        font.setBold(True)
+        item_desc.setFont(font)
+        item_desc.setForeground(QColor("#00bfff"))  # azul claro
+        self.tabela_garantias.setItem(row, 1, item_desc)
+
+        # Coluna valor
+        item_total = QTableWidgetItem("R$ 0,00")
+        item_total.setFlags(item_total.flags() & ~Qt.ItemIsEditable)
+        item_total.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        item_total.setBackground(QColor("#2c3446"))
+        item_total.setFont(font)
+        item_total.setForeground(QColor("#00bfff"))
+        self.tabela_garantias.setItem(row, 2, item_total)
+
+    def editar_garantia(self, row, col):
+        """Abre o form para editar a garantia clicada."""
+        # Ignora se clicou no totalizador (última linha)
+        if row == self.tabela_garantias.rowCount() - 1:
+            return
+
+        desc = self.tabela_garantias.item(row, 1).text()
+        val = self.tabela_garantias.item(row, 2).text()
+
+        from ui.garantias_ui import GarantiaForm
+
+        def callback(data):
+            # Atualiza a linha editada
+            self.tabela_garantias.item(row, 1).setText(data["descricao"])
+            self.tabela_garantias.item(row, 2).setText(data["valor"])
+            self.atualizar_totalizador()
+
+        self.form_garantia = GarantiaForm(callback, parent=self)
+        # Preenche os campos iniciais do form
+        self.form_garantia.inp_desc.setPlainText(desc)
+        self.form_garantia.inp_valor.setText(val)
+        self.form_garantia.show()
+
+
+    def atualizar_totalizador(self):
+        """Recalcula o total das garantias."""
+        total = 0.0
+        row_count = self.tabela_garantias.rowCount()
+
+        # percorre todas as linhas menos a última (totalizador)
+        for r in range(row_count - 1):
+            val_item = self.tabela_garantias.item(r, 2)
+            if val_item:
+                txt = val_item.text().replace("R$", "").replace(".", "").replace(",", ".").strip()
+                try:
+                    total += float(txt)
+                except:
+                    pass
+
+        total_fmt = f"R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        self.tabela_garantias.item(row_count - 1, 2).setText(total_fmt)

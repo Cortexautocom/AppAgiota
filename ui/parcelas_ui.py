@@ -95,13 +95,13 @@ class ParcelasWindow(QWidget):
             # Juros (azul)
             item_juros = QTableWidgetItem("")
             item_juros.setTextAlignment(Qt.AlignCenter)
-            item_juros.setForeground(QColor("blue"))
+            item_juros.setForeground(QColor("#78ddff"))
             self.tabela.setItem(linha, 3, item_juros)
 
             # Desconto (vermelho)
             item_desc = QTableWidgetItem("")
             item_desc.setTextAlignment(Qt.AlignCenter)
-            item_desc.setForeground(QColor("red"))
+            item_desc.setForeground(QColor("#ffaeae"))
             self.tabela.setItem(linha, 4, item_desc)
 
             # Parcela Atualizada (não editável)
@@ -113,12 +113,13 @@ class ParcelasWindow(QWidget):
             # Valor Pago
             item_pago = QTableWidgetItem("")
             item_pago.setTextAlignment(Qt.AlignCenter)
+            item_pago.setForeground(QColor("#78ddff"))
             self.tabela.setItem(linha, 6, item_pago)
 
             # Residual (não editável, vermelho)
             item_residual = QTableWidgetItem("")
             item_residual.setTextAlignment(Qt.AlignCenter)
-            item_residual.setForeground(QColor("red"))
+            item_residual.setForeground(QColor("#ffaeae"))
             item_residual.setFlags(item_residual.flags() & ~Qt.ItemIsEditable)
             self.tabela.setItem(linha, 7, item_residual)
 
@@ -159,11 +160,27 @@ class ParcelasWindow(QWidget):
             item = QTableWidgetItem("")
             item.setTextAlignment(Qt.AlignCenter)
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-            item.setBackground(QColor("#2c3446"))  # mesma cor da tabela
+            item.setBackground(QColor("#4e586e"))  # mesma cor da tabela
 
             if 2 <= col <= 6:  # colunas Valor até Valor Pago
                 item.setFont(fonte_negrito)
                 item.setText("R$ 0,00")
+
+                # Azul claro em Juros (3) e Valor Pago (6)
+                if col in (3, 6):
+                    item.setForeground(QColor("#00bfff"))
+
+            # Totalizadores especiais fora do intervalo 2–6
+            if col == 4:  # Desconto
+                item.setFont(fonte_negrito)
+                item.setText("R$ 0,00")
+                item.setForeground(QColor("#ff6e6e"))
+
+            if col == 7:  # Residual
+                item.setFont(fonte_negrito)
+                item.setText("R$ 0,00")
+                item.setForeground(QColor("#ff6e6e"))
+
 
             self.tabela.setItem(row, col, item)
 
