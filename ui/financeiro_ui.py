@@ -129,16 +129,25 @@ class FinanceiroWindow(QWidget):
 
             # ID oculto
             item_id = QTableWidgetItem(emp[0])
+            item_id.setTextAlignment(Qt.AlignCenter)
             tabela.setItem(linha, 0, item_id)
 
             # Data
             item_data = QTableWidgetItem(emp[3] or "")
             item_data.setFlags(item_data.flags() & ~Qt.ItemIsEditable)
+            item_data.setTextAlignment(Qt.AlignCenter)
             tabela.setItem(linha, 1, item_data)
 
-            # Valor
-            item_valor = QTableWidgetItem(emp[2] or "")
+            # Valor (formato brasileiro: R$ 9.999,99)
+            try:
+                valor_float = float(str(emp[2]).replace(",", "."))
+                valor_fmt = f"R$ {valor_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            except (ValueError, TypeError):
+                valor_fmt = emp[2] or ""
+
+            item_valor = QTableWidgetItem(valor_fmt)
             item_valor.setFlags(item_valor.flags() & ~Qt.ItemIsEditable)
+            item_valor.setTextAlignment(Qt.AlignCenter)
             tabela.setItem(linha, 2, item_valor)
 
             # Status (placeholder: em breve vamos calcular pelas parcelas)
@@ -146,6 +155,7 @@ class FinanceiroWindow(QWidget):
             item_status = QTableWidgetItem(status)
             item_status.setFlags(item_status.flags() & ~Qt.ItemIsEditable)
             item_status.setForeground(Qt.yellow)
+            item_status.setTextAlignment(Qt.AlignCenter)
             tabela.setItem(linha, 3, item_status)
 
         # 🔹 Conectar duplo clique para abrir parcelas
@@ -154,7 +164,6 @@ class FinanceiroWindow(QWidget):
 
         container.addWidget(tabela)
         self._set_content(frame)
-
 
     def abrir_parcelas(self, row):
         """Abre a janela de parcelas do empréstimo selecionado."""

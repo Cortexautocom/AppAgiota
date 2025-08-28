@@ -6,6 +6,8 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QGraphicsDropShadowEffect, QMessageBox
 from PySide6.QtCore import Qt
 
+from emprestimos import emprestimos, salvar_emprestimos, sincronizar_emprestimos_upload
+from parcelas import parcelas as lista_parcelas, salvar_parcelas, sincronizar_parcelas_upload
 
 class EmprestimoForm(QWidget):
     """
@@ -158,6 +160,7 @@ class EmprestimoForm(QWidget):
 
         emprestimos.append(novo_emprestimo)
         salvar_emprestimos()
+        sincronizar_emprestimos_upload()
 
         # 🔹 Criar parcelas vinculadas ao empréstimo
         novas_parcelas = []
@@ -165,16 +168,23 @@ class EmprestimoForm(QWidget):
             parcela_id = str(uuid.uuid4())
             nova_parcela = (
                 parcela_id,
-                emprestimo_id,   # ✅ agora vincula corretamente ao empréstimo real
+                emprestimo_id,
                 str(i),
                 f"{valor_parcela:.2f}",
-                f"01/{i:02d}/2025",  # TODO: calcular datas reais
+                f"01/{i:02d}/2025",
+                "",
+                "",
+                f"{valor_parcela:.2f}",
+                "",
+                "",
                 "Não",
                 ""
             )
             novas_parcelas.append(nova_parcela)
 
         salvar_parcelas(novas_parcelas)
+        sincronizar_parcelas_upload()
+
 
         # 🔹 Retorna para o callback
         data = {

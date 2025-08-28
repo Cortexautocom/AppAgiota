@@ -759,7 +759,7 @@ class ModernWindow(QMainWindow):
         layout.addSpacing(20)
 
         # Botão de backup
-        btn_backup = QPushButton("☁️ Backup em nuvem")
+        btn_backup = QPushButton("☁️ Enviar dados para núvem")
         btn_backup.setStyleSheet("""
             QPushButton {
                 background-color: #3498db; color: white;
@@ -773,7 +773,7 @@ class ModernWindow(QMainWindow):
         layout.addSpacing(20)
 
         # Botão para baixar dados do Supabase
-        btn_download = QPushButton("📥 Carregar dados da nuvem")
+        btn_download = QPushButton("📥 Baixar dados da nuvem")
         btn_download.setStyleSheet("""
             QPushButton {
                 background-color: #f39c12; color: white;
