@@ -103,6 +103,7 @@ class FinanceiroWindow(QWidget):
 
         # Tabela de empréstimos (agora com 4 colunas: ID oculto + Data + Valor + Status)
         tabela = QTableWidget(0, 4)
+        tabela.setSelectionMode(QAbstractItemView.NoSelection)
         tabela.setHorizontalHeaderLabels(["ID", "Data", "Valor", "Status"])
         tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         tabela.setColumnHidden(0, True)  # 🔹 Esconde a coluna do ID

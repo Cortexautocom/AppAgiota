@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QPushButton, QFrame, QTableWidget,
     QTableWidgetItem, QHeaderView, QComboBox, QGraphicsDropShadowEffect,
-    QMessageBox, QStyleFactory
+    QMessageBox, QStyleFactory, QAbstractItemView
 )
 
 from PySide6.QtGui import QColor
@@ -450,6 +450,9 @@ class ModernWindow(QMainWindow):
 
         # Tabela de resultados
         self.table_results = QTableWidget(0, 7)
+        self.table_results.cellDoubleClicked.connect(self.abrir_financeiro_cliente)
+
+        self.table_results.setSelectionMode(QAbstractItemView.NoSelection)
         self.table_results.setHorizontalHeaderLabels(
             ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação", "Ações"]
         )
@@ -471,6 +474,20 @@ class ModernWindow(QMainWindow):
         # Popular filtros e mostrar tudo
         self.rebuild_search_filters()
         self.apply_search_filters()
+
+    def abrir_financeiro_cliente(self, row, col):
+        """Abre a aba Financeiro do cliente ao dar duplo clique na tabela."""
+        if row < 0 or row >= len(self.clients):
+            return
+
+        cliente = self.clients[row]  # tupla (id_cliente, nome, cpf, telefone, endereco, cidade, indicacao)
+
+        # 🔹 Abre a janela FinanceiroWindow já focada
+        self.finance_window = FinanceiroWindow(cliente, parent=self)
+        self.finance_window.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowMinimizeButtonHint)
+        self.finance_window.setAttribute(Qt.WA_DeleteOnClose)  
+        self.finance_window.show()
+
 
     # ======== Filtros de pesquisa ========
     def rebuild_search_filters(self):
