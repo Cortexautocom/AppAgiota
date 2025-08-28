@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QFrame,
-    QTableWidget, QTableWidgetItem, QHeaderView
+    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
 )
 from PySide6.QtCore import Qt
 
@@ -198,4 +198,79 @@ class FinanceiroWindow(QWidget):
 
     # ==============================
     def show_garantias(self):
-        self.content.setText("🏦 Garantias do cliente (em breve)")
+        container = QVBoxLayout()
+        frame = QWidget()
+        frame.setLayout(container)
+
+        # Botão "Nova Garantia" (AGORA VERDE, igual "Novo Cliente")
+        btn_nova = QPushButton("➕ Nova Garantia")
+        btn_nova.setFixedSize(160, 32)
+        btn_nova.setStyleSheet("""
+            QPushButton {
+                background-color: #2ecc71; color: white;
+                padding: 6px 10px; font-size: 12px; border-radius: 6px;
+            }
+            QPushButton:hover { background-color: #27ae60; }
+        """)
+        btn_nova.clicked.connect(self.open_nova_garantia)
+        container.addWidget(btn_nova, alignment=Qt.AlignLeft)
+
+        # Tabela de garantias
+        self.tabela_garantias = QTableWidget(0, 3)
+        self.tabela_garantias.setSelectionMode(QAbstractItemView.NoSelection)
+        self.tabela_garantias.setHorizontalHeaderLabels(["Nº", "Descrição e detalhes da garantia", "Valor"])
+
+        header = self.tabela_garantias.horizontalHeader()
+        header.setStyleSheet("""
+            QHeaderView::section {
+                background-color: #374157; color: white;
+                font-weight: bold;
+                padding: 6px;
+                border: none;
+            }
+        """)
+
+        # Colunas
+        header.setSectionResizeMode(0, QHeaderView.Fixed)
+        self.tabela_garantias.setColumnWidth(0, 40)
+
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+
+        header.setSectionResizeMode(2, QHeaderView.Fixed)
+        self.tabela_garantias.setColumnWidth(2, 150)
+
+        # Estilo
+        self.tabela_garantias.verticalHeader().setVisible(False)
+        self.tabela_garantias.setStyleSheet("""
+            QTableWidget {
+                background-color: #2c3446; color: white;
+                border: 1px solid #3a455b;
+                font-size: 14px;
+            }
+        """)
+        self.tabela_garantias.verticalHeader().setDefaultSectionSize(80)
+
+        container.addWidget(self.tabela_garantias)
+        self._set_content(frame)
+
+    def open_nova_garantia(self):
+        from ui.garantias_ui import GarantiaForm
+
+        def callback(data):
+            # número da garantia = total de linhas + 1
+            row = self.tabela_garantias.rowCount()
+            self.tabela_garantias.insertRow(row)
+
+            num_item = QTableWidgetItem(str(row + 1))
+            num_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela_garantias.setItem(row, 0, num_item)
+
+            desc_item = QTableWidgetItem(data["descricao"])
+            self.tabela_garantias.setItem(row, 1, desc_item)
+
+            val_item = QTableWidgetItem(data["valor"])
+            val_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.tabela_garantias.setItem(row, 2, val_item)
+
+        self.form_garantia = GarantiaForm(callback, parent=self)
+        self.form_garantia.show()
