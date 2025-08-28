@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QPushButton, QFrame, QTableWidget,
     QTableWidgetItem, QHeaderView, QComboBox, QGraphicsDropShadowEffect,
-    QMessageBox, QToolTip
+    QMessageBox, QStyleFactory
 )
 
 from PySide6.QtGui import QColor
@@ -861,6 +861,8 @@ class SaveWorker(QRunnable):
 # =====================================================================
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    print(QStyleFactory.keys())
     verificar_tabelas()
     main_window = ModernWindow()
     splash = SplashScreen(parent=main_window)
