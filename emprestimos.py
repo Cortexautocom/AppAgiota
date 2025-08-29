@@ -9,14 +9,14 @@ emprestimos = []
 
 # 🔹 Carregar empréstimos do banco local
 def carregar_emprestimos():
-    print("DEBUG - Carregando empréstimos do banco...")
+    
     conn = sqlite3.connect(get_local_db_path())
     cur = conn.cursor()
     cur.execute("SELECT * FROM emprestimos")
     dados = cur.fetchall()
     conn.close()
 
-    print("DEBUG - Empréstimos encontrados no banco:", dados)
+    
 
     global emprestimos
     emprestimos = dados

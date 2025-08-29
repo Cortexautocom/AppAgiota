@@ -8,15 +8,14 @@ movimentacoes = []
 
 # 🔹 Carregar movimentações do banco local
 def carregar_movimentacoes():
-    print("DEBUG - Carregando movimentações do banco...")
+    
     conn = sqlite3.connect(get_local_db_path())
     cur = conn.cursor()
     cur.execute("SELECT * FROM movimentacoes")
     dados = cur.fetchall()
     conn.close()
 
-    print("DEBUG - Movimentações encontradas no banco:", dados)
-
+    
     global movimentacoes
     movimentacoes = dados
     return dados

@@ -306,7 +306,7 @@ class ModernWindow(QMainWindow):
                 )
                 self.clients[edit_index] = cliente_tuple
 
-            print("DEBUG - Cliente salvo na memória:", cliente_tuple)
+            
 
             # Salva no banco local
             self.save_local_db()

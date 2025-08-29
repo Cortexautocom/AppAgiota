@@ -9,14 +9,14 @@ parcelas = []
 
 # 🔹 Carregar todas as parcelas do banco local
 def carregar_parcelas():
-    print("DEBUG - Carregando todas as parcelas do banco...")
+    
     conn = sqlite3.connect(get_local_db_path())
     cur = conn.cursor()
     cur.execute("SELECT * FROM parcelas")
     dados = cur.fetchall()
     conn.close()
 
-    print("DEBUG - Parcelas encontradas no banco:", dados)
+    
 
     global parcelas
     parcelas = dados

@@ -27,14 +27,14 @@ class ParcelasWindow(QWidget):
         lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #9fb0c7;")
         layout.addWidget(lbl)
 
-        # Tabela de parcelas (9 colunas)
+        # 🔹 Criação da tabela
         self.tabela = QTableWidget(0, 9)
         self.tabela.setHorizontalHeaderLabels([
             "Nº", "Vencimento", "Valor", "Juros", "Desconto",
             "Parcela Atualizada", "Valor Pago", "Residual", "Data do Pag."
         ])
 
-        # 🔹 Aparência da tabela
+        # Aparência da tabela
         header = self.tabela.horizontalHeader()
         header.setStyleSheet("""
             QHeaderView::section {
@@ -72,10 +72,6 @@ class ParcelasWindow(QWidget):
         fonte_negrito.setBold(True)
 
         for linha, parcela in enumerate(parcelas_do_emprestimo):
-            # parcela = (id, id_emprestimo, numero, valor, vencimento,
-            #            juros, desconto, parcela_atualizada, valor_pago,
-            #            residual, pago, data_pagamento)
-
             (
                 _id, _id_emp, num, valor, venc,
                 juros, desconto, parcela_atual, valor_pago,
@@ -91,62 +87,61 @@ class ParcelasWindow(QWidget):
             item_num.setFont(fonte_negrito)
             self.tabela.setItem(linha, 0, item_num)
 
-            # Vencimento
+            # Vencimento (editável)
             item_venc = QTableWidgetItem(venc or "")
             item_venc.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(linha, 1, item_venc)
 
-            # Valor
-            item_valor = QTableWidgetItem(f"R$ {valor}")
+            # Valor (editável, evita duplicar "R$")
+            item_valor = QTableWidgetItem(valor if str(valor).startswith("R$") else f"R$ {valor}")
             item_valor.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(linha, 2, item_valor)
 
-            # Juros
+            # Juros (editável)
             item_juros = QTableWidgetItem(juros or "")
             item_juros.setTextAlignment(Qt.AlignCenter)
             item_juros.setForeground(QColor("#78ddff"))
             self.tabela.setItem(linha, 3, item_juros)
 
-            # Desconto
+            # Desconto (editável)
             item_desc = QTableWidgetItem(desconto or "")
             item_desc.setTextAlignment(Qt.AlignCenter)
             item_desc.setForeground(QColor("#ffaeae"))
             self.tabela.setItem(linha, 4, item_desc)
 
-            # Parcela Atualizada
+            # Parcela Atualizada (não editável, calculada)
             item_atual = QTableWidgetItem(parcela_atual or f"R$ {valor}")
             item_atual.setTextAlignment(Qt.AlignCenter)
             item_atual.setFlags(item_atual.flags() & ~Qt.ItemIsEditable)
             self.tabela.setItem(linha, 5, item_atual)
 
-            # Valor Pago
+            # Valor Pago (editável)
             item_pago = QTableWidgetItem(valor_pago or "")
             item_pago.setTextAlignment(Qt.AlignCenter)
             item_pago.setForeground(QColor("#78ddff"))
             self.tabela.setItem(linha, 6, item_pago)
 
-            # Residual
+            # Residual (não editável, calculado)
             item_residual = QTableWidgetItem(residual or "")
             item_residual.setTextAlignment(Qt.AlignCenter)
             item_residual.setForeground(QColor("#ffaeae"))
             item_residual.setFlags(item_residual.flags() & ~Qt.ItemIsEditable)
             self.tabela.setItem(linha, 7, item_residual)
 
-            # Data do Pag.
+            # Data do Pag. (editável)
             item_data = QTableWidgetItem(data_pag or "")
             item_data.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(linha, 8, item_data)
 
-
-        # 🔹 Espaço visual entre tabela e totalizadores
+        # Espaço visual entre tabela e totalizadores
         spacer = QFrame()
         spacer.setFixedHeight(12)
         layout.addWidget(spacer)
 
-        # 🔹 Linha de totais
+        # Linha de totais
         self.adicionar_totalizadores(fonte_negrito)
 
-        # Conectar formatação automática
+        # 🔹 Conectar formatação automática (a tabela já existe aqui)
         self.tabela.itemChanged.connect(self.formatar_valores)
 
         # Botão salvar
@@ -160,6 +155,22 @@ class ParcelasWindow(QWidget):
         """)
         btn_salvar.clicked.connect(self.salvar_modificacoes)
         layout.addWidget(btn_salvar, alignment=Qt.AlignCenter)
+
+        # 🔹 Atualiza cálculos iniciais
+        self.atualizar_totalizadores()
+        for row in range(self.tabela.rowCount() - 1):  # ignora totalizadores
+            try:
+                valor = self._get_valor(row, 2)
+                juros = self._get_valor(row, 3)
+                desconto = self._get_valor(row, 4)
+                atualizado = valor + juros - desconto
+                self.tabela.item(row, 5).setText(self._fmt(atualizado))
+
+                pago = self._get_valor(row, 6)
+                residual = atualizado - pago
+                self.tabela.item(row, 7).setText(self._fmt(residual))
+            except:
+                pass
 
     def adicionar_totalizadores(self, fonte_negrito):
         """Adiciona linha de totais em negrito."""
@@ -180,7 +191,6 @@ class ParcelasWindow(QWidget):
                 if col in (3, 6):
                     item.setForeground(QColor("#00bfff"))
 
-            # Totalizadores especiais fora do intervalo 2–6
             if col == 4:  # Desconto
                 item.setFont(fonte_negrito)
                 item.setText("R$ 0,00")
@@ -191,26 +201,82 @@ class ParcelasWindow(QWidget):
                 item.setText("R$ 0,00")
                 item.setForeground(QColor("#ff6e6e"))
 
-
             self.tabela.setItem(row, col, item)
 
     def formatar_valores(self, item):
-        """Formata valores monetários em R$."""
-        if not item:
+        """Formata valores monetários e recalcula campos dependentes."""
+        if not item or item.row() == self.tabela.rowCount() - 1:
             return
+
         col_monetarias = [2, 3, 4, 5, 6, 7]
-        if item.row() == self.tabela.rowCount() - 1:
-            return
         if item.column() in col_monetarias:
             texto = item.text().replace("R$", "").replace(".", "").replace(",", ".").strip()
             if texto == "":
-                return
+                valor = 0.0
+                item.setText("")  # mantém célula visualmente vazia
+            else:
+                try:
+                    valor = float(texto)
+                    item.setText(self._fmt(valor))
+                    item.setTextAlignment(Qt.AlignCenter)
+                except ValueError:
+                    valor = 0.0
+                    item.setText("")
+
+
+        if item.column() in (2, 3, 4):
             try:
-                valor = float(texto)
-                item.setText(f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-                item.setTextAlignment(Qt.AlignCenter)
-            except ValueError:
-                item.setText("")
+                valor = self._get_valor(item.row(), 2)
+                juros = self._get_valor(item.row(), 3)
+                desconto = self._get_valor(item.row(), 4)
+                atualizado = valor + juros - desconto
+                celula = self.tabela.item(item.row(), 5)
+                if celula:
+                    celula.setText(self._fmt(atualizado))
+            except:
+                pass
+
+        if item.column() in (5, 6):
+            try:
+                atualizado = self._get_valor(item.row(), 5)
+                pago = self._get_valor(item.row(), 6)
+                residual = atualizado - pago
+                celula = self.tabela.item(item.row(), 7)
+                if celula:
+                    celula.setText(self._fmt(residual))
+            except:
+                pass
+
+        self.atualizar_totalizadores()
+
+    def _get_valor(self, row, col):
+        """Lê valor float de uma célula formatada."""
+        celula = self.tabela.item(row, col)
+        if not celula:
+            return 0.0
+        txt = celula.text().replace("R$", "").replace(".", "").replace(",", ".").strip()
+        try:
+            return float(txt) if txt else 0.0
+        except:
+            return 0.0
+        
+    def _fmt(self, valor):
+        """Formata float em moeda BR."""
+        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def atualizar_totalizadores(self):
+        """Recalcula os totais das colunas monetárias."""
+        row_total = self.tabela.rowCount() - 1
+        for col in [2, 3, 4, 5, 6, 7]:
+            total = 0.0
+            for r in range(row_total):
+                try:
+                    total += self._get_valor(r, col)
+                except:
+                    pass
+            celula = self.tabela.item(row_total, col)
+            if celula:
+                celula.setText(self._fmt(total))
 
     def salvar_modificacoes(self):
         """Salva alterações no banco local e envia ao Supabase."""
@@ -248,13 +314,8 @@ class ParcelasWindow(QWidget):
                 data_pag
             ))
 
-        # Atualiza lista global
         parcelas[:] = novas_parcelas
-
-        # Salva no SQLite
         salvar_parcelas(parcelas)
-
-        # Envia ao Supabase
         sincronizar_parcelas_upload()
 
         print("✅ Parcelas salvas no banco local e na nuvem!")
@@ -263,5 +324,3 @@ class ParcelasWindow(QWidget):
             self.on_save_callback()
 
         self.close()
-
-

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QGraphicsDropShadowEffect, QMessageBox
 from PySide6.QtCore import Qt
+import uuid
 
 from emprestimos import emprestimos, salvar_emprestimos, sincronizar_emprestimos_upload
 from parcelas import parcelas as lista_parcelas, salvar_parcelas, sincronizar_parcelas_upload
@@ -132,7 +133,7 @@ class EmprestimoForm(QWidget):
 
     def save_emprestimo(self):
         """Cria e salva o empréstimo e suas parcelas no banco local."""
-        import uuid
+        
         from emprestimos import emprestimos, salvar_emprestimos
         from parcelas import parcelas as lista_parcelas, salvar_parcelas
 
@@ -158,6 +159,9 @@ class EmprestimoForm(QWidget):
             ""
         )
 
+        def fmt_br(valor):
+            return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        
         emprestimos.append(novo_emprestimo)
         salvar_emprestimos()
         sincronizar_emprestimos_upload()
@@ -166,15 +170,16 @@ class EmprestimoForm(QWidget):
         novas_parcelas = []
         for i in range(1, qtd + 1):
             parcela_id = str(uuid.uuid4())
+            valor_fmt = fmt_br(valor_parcela)  # 👈 aplica formatação BR
             nova_parcela = (
                 parcela_id,
                 emprestimo_id,
                 str(i),
-                f"{valor_parcela:.2f}",
+                valor_fmt,          # 👈 já vai como "R$ 1.000,00"
                 f"01/{i:02d}/2025",
                 "",
                 "",
-                f"{valor_parcela:.2f}",
+                valor_fmt,          # 👈 também formatado
                 "",
                 "",
                 "Não",
