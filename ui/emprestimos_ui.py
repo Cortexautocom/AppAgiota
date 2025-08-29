@@ -163,8 +163,7 @@ class EmprestimoForm(QWidget):
             return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
         emprestimos.append(novo_emprestimo)
-        salvar_emprestimos()
-        sincronizar_emprestimos_upload()
+        salvar_emprestimos()       
 
         # 🔹 Criar parcelas vinculadas ao empréstimo
         novas_parcelas = []
