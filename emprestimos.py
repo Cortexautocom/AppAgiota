@@ -35,9 +35,11 @@ def salvar_emprestimos():
             emprestimo = (str(uuid.uuid4()),) + emprestimo[1:]
 
         cursor.execute("""
-            INSERT OR REPLACE INTO emprestimos (id, id_cliente, valor, data_inicio, parcelas, observacao)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO emprestimos (
+                id, id_cliente, valor, data_inicio, parcelas, observacao, juros, prestacao
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, emprestimo)
+
 
     conn.commit()
     conn.close()

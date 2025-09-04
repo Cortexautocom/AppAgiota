@@ -78,6 +78,13 @@ class FinanceiroWindow(QWidget):
         # 🔹 Abre já na aba Empréstimos
         self.show_emprestimos()
 
+    def _fmt_br(self, valor):
+        try:
+            valor_float = float(str(valor).replace(",", "."))
+            return f"R$ {valor_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        except (ValueError, TypeError):
+            return valor or ""
+
 
     # ==============================
     # Aba de Empréstimos
@@ -102,9 +109,9 @@ class FinanceiroWindow(QWidget):
         container.addWidget(btn_novo)
 
         # Tabela de empréstimos (agora com 4 colunas: ID oculto + Data + Valor + Status)
-        tabela = QTableWidget(0, 4)
+        tabela = QTableWidget(0, 8)
         tabela.setSelectionMode(QAbstractItemView.NoSelection)
-        tabela.setHorizontalHeaderLabels(["ID", "Data", "Valor", "Status"])
+        tabela.setHorizontalHeaderLabels(["ID", "Data", "Valor", "Parcelas", "Juros", "Prestação", "Observação", "Status"])
         tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         tabela.setColumnHidden(0, True)  # 🔹 Esconde a coluna do ID
         tabela.setStyleSheet("""
@@ -138,7 +145,7 @@ class FinanceiroWindow(QWidget):
             item_data.setTextAlignment(Qt.AlignCenter)
             tabela.setItem(linha, 1, item_data)
 
-            # Valor (formato brasileiro: R$ 9.999,99)
+            # Valor
             try:
                 valor_float = float(str(emp[2]).replace(",", "."))
                 valor_fmt = f"R$ {valor_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -150,13 +157,38 @@ class FinanceiroWindow(QWidget):
             item_valor.setTextAlignment(Qt.AlignCenter)
             tabela.setItem(linha, 2, item_valor)
 
-            # Status (placeholder: em breve vamos calcular pelas parcelas)
+            # Parcelas
+            item_parcelas = QTableWidgetItem(str(emp[4]) or "")
+            item_parcelas.setFlags(item_parcelas.flags() & ~Qt.ItemIsEditable)
+            item_parcelas.setTextAlignment(Qt.AlignCenter)
+            tabela.setItem(linha, 3, item_parcelas)
+
+            # Juros
+            item_juros = QTableWidgetItem(self._fmt_br(emp[6]))
+            item_juros.setFlags(item_juros.flags() & ~Qt.ItemIsEditable)
+            item_juros.setTextAlignment(Qt.AlignCenter)
+            tabela.setItem(linha, 4, item_juros)
+
+            # Prestação
+            item_prest = QTableWidgetItem(self._fmt_br(emp[7]))
+            item_prest.setFlags(item_prest.flags() & ~Qt.ItemIsEditable)
+            item_prest.setTextAlignment(Qt.AlignCenter)
+            tabela.setItem(linha, 5, item_prest)
+
+            # Observação
+            item_obs = QTableWidgetItem(emp[5] or "")
+            item_obs.setFlags(item_obs.flags() & ~Qt.ItemIsEditable)
+            item_obs.setTextAlignment(Qt.AlignCenter)
+            tabela.setItem(linha, 6, item_obs)
+
+            # Status
             status = "Em andamento"
             item_status = QTableWidgetItem(status)
             item_status.setFlags(item_status.flags() & ~Qt.ItemIsEditable)
             item_status.setForeground(Qt.yellow)
             item_status.setTextAlignment(Qt.AlignCenter)
-            tabela.setItem(linha, 3, item_status)
+            tabela.setItem(linha, 7, item_status)
+
 
         # 🔹 Conectar duplo clique para abrir parcelas
         tabela.cellDoubleClicked.connect(lambda row, col: self.abrir_parcelas(row))
@@ -194,14 +226,23 @@ class FinanceiroWindow(QWidget):
         def callback(data):
             print("Novo empréstimo cadastrado:", data)
 
-            # Abre a tela de parcelas com os dados reais
+            # 🔹 Recarregar do banco local para garantir que o novo empréstimo esteja disponível
+            from emprestimos import carregar_emprestimos
+            self.emprestimos = carregar_emprestimos()
+
+            # 🔹 Atualizar a lista de empréstimos do cliente
+            self.show_emprestimos()
+
+            # 🔹 E só depois abrir a tela de parcelas
             self.parcelas_window = ParcelasWindow({
-                "id": data["id"],   # ✅ agora vai o UUID correto
+                "id": data["id"],
                 "capital": data["capital"],
                 "juros": data["juros"],
                 "parcelas": data["parcelas"]
             })
             self.parcelas_window.show()
+
+
 
         self.form_emprestimo = EmprestimoForm(callback, id_cliente=self.client_data[0], parent=self)
 

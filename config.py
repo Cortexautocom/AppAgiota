@@ -35,8 +35,11 @@ def criar_tabelas_local():
             valor TEXT,
             data_inicio TEXT,
             parcelas TEXT,
-            observacao TEXT
+            observacao TEXT,
+            juros TEXT,
+            prestacao TEXT
         )
+
     """)
 
     # 🔹 Tabela parcelas
