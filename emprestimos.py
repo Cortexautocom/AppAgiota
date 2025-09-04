@@ -26,17 +26,14 @@ def carregar_emprestimos():
 # 🔹 Salvar todos os empréstimos no banco local
 def salvar_emprestimos():
     global emprestimos
-    print("💾 [DEBUG] salvar_emprestimos() iniciou.")
-    print(f"💾 [DEBUG] Total na lista global: {len(emprestimos)}")
-
+    
     conn = sqlite3.connect(get_local_db_path())
     cursor = conn.cursor()
 
     for i, emprestimo in enumerate(emprestimos):
-        print(f"    ➡ [DEBUG] {i}-ésimo emprestimo:", emprestimo, " (len=", len(emprestimo), ")")
-
+        
         if len(emprestimo) != 8:
-            print("    ⚠️ [DEBUG] Corrigindo para 8 colunas.")
+            
             emprestimo = emprestimo + tuple("" for _ in range(8 - len(emprestimo)))
 
         cursor.execute("""
@@ -49,10 +46,10 @@ def salvar_emprestimos():
 
     cursor.execute("SELECT COUNT(*) FROM emprestimos")
     total = cursor.fetchone()[0]
-    print("✅ [DEBUG] Total de registros no banco agora:", total)
+    
 
     conn.close()
-    print("💾 [DEBUG] salvar_emprestimos() terminou.")
+    
 
 
 # 🔹 Criar e salvar um novo empréstimo

@@ -26,14 +26,14 @@ def carregar_parcelas():
 # 🔹 Carregar parcelas de um empréstimo específico
 def carregar_parcelas_por_emprestimo(id_emprestimo):
     """Retorna todas as parcelas de um empréstimo específico"""
-    print(f"DEBUG - Carregando parcelas do empréstimo {id_emprestimo}...")
+    
     conn = sqlite3.connect(get_local_db_path())
     cur = conn.cursor()
     cur.execute("SELECT * FROM parcelas WHERE id_emprestimo = ?", (id_emprestimo,))
     dados = cur.fetchall()
     conn.close()
 
-    print("DEBUG - Parcelas encontradas:", dados)
+    
 
     global parcelas
     parcelas = dados

@@ -97,5 +97,4 @@ def verificar_tabelas():
 
     if faltando:
         raise RuntimeError(f"⚠ Banco local inválido! Tabelas ausentes: {faltando}")
-    else:
-        print("✅ Banco local OK, todas as tabelas estão presentes.")
+

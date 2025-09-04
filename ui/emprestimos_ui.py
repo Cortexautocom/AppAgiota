@@ -206,7 +206,7 @@ class EmprestimoForm(QWidget):
 
     # ==============================
     def save_emprestimo(self):
-        print("🔔 [DEBUG] Botão Criar Empréstimo clicado!")
+        
 
         if not hasattr(self, "_ultimo_calc"):
             QMessageBox.warning(self, "Erro", "Calcule a prestação antes de salvar.")
@@ -226,16 +226,12 @@ class EmprestimoForm(QWidget):
             str(dados["prestacao"])
         )
 
-        print("🟡 [DEBUG] Novo empréstimo montado:", novo_emprestimo)
+        
 
         from emprestimos import emprestimos, salvar_emprestimos
-        emprestimos.append(novo_emprestimo)
-        print("🟡 [DEBUG] Lista emprestimos (len={}):".format(len(emprestimos)))
-        for e in emprestimos:
-            print("    ➡", e)
+        emprestimos.append(novo_emprestimo)        
 
-        salvar_emprestimos()
-        print("🟡 [DEBUG] salvar_emprestimos() chamado.")
+        salvar_emprestimos()       
 
         # gera parcelas
         novas_parcelas = []
@@ -260,7 +256,7 @@ class EmprestimoForm(QWidget):
 
         from parcelas import salvar_parcelas
         salvar_parcelas(novas_parcelas)
-        print("🟡 [DEBUG] {} parcelas geradas e salvas.".format(len(novas_parcelas)))
+        
 
         self.parent_callback({
             "id": emprestimo_id,

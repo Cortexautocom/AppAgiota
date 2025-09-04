@@ -25,10 +25,7 @@ from ui.financeiro_ui import FinanceiroWindow
 # Config
 from config import criar_tabelas_local, get_local_db_path, verificar_tabelas
 
-print("📂 Conectando ao banco:", get_local_db_path())
-print("🔧 Criando tabelas...")
 criar_tabelas_local()
-print("✅ Tabelas criadas.")
 
 # ☁️ Supabase (sincronização)
 from supabase_utils import (
@@ -68,7 +65,6 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
-print("📤 Iniciando operação no banco...")
 
 # =====================================================================
 # ModernWindow
@@ -706,10 +702,7 @@ class ModernWindow(QMainWindow):
             self.parcelas = carregar_parcelas()
             self.movimentacoes = carregar_movimentacoes()
 
-            print(f"✅ {len(self.clients)} clientes carregados.")
-            print(f"✅ {len(self.emprestimos)} empréstimos carregados.")
-            print(f"✅ {len(self.parcelas)} parcelas carregadas.")
-            print(f"✅ {len(self.movimentacoes)} movimentações carregadas.")
+            
         except Exception as e:
             print(f"⚠ Erro ao carregar banco local: {e}")
 
@@ -721,7 +714,7 @@ class ModernWindow(QMainWindow):
             salvar_emprestimos()
             salvar_parcelas()
             salvar_movimentacoes()
-            print("💾 Banco local atualizado com sucesso.")
+            
         except Exception as e:
             print(f"⚠ Erro ao salvar no banco local: {e}")
 
@@ -812,7 +805,7 @@ class ModernWindow(QMainWindow):
             self.rebuild_search_filters()
             self.apply_search_filters()
 
-            print("✅ Dados do Supabase carregados e exibidos na tela de busca.")
+            
         except Exception as e:
             print(f"⚠ Erro ao baixar dados do Supabase: {e}")
 
@@ -826,7 +819,7 @@ class ModernWindow(QMainWindow):
             QMessageBox.Yes | QMessageBox.Cancel
         )
         if reply != QMessageBox.Yes:
-            print("ℹ Upload para nuvem cancelado pelo usuário.")
+            
             return
 
         self.status_label.setText("💾 Salvando em nuvem...")
@@ -887,7 +880,7 @@ class SaveWorker(QRunnable):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    print(QStyleFactory.keys())
+    
     verificar_tabelas()
     main_window = ModernWindow()
     splash = SplashScreen(parent=main_window)

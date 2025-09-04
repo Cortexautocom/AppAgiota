@@ -224,7 +224,7 @@ class FinanceiroWindow(QWidget):
         from ui.parcelas_ui import ParcelasWindow
 
         def callback(data):
-            print("Novo empréstimo cadastrado:", data)
+            
 
             # 🔹 Recarregar do banco local para garantir que o novo empréstimo esteja disponível
             from emprestimos import carregar_emprestimos
