@@ -26,13 +26,18 @@ def carregar_emprestimos():
 # 🔹 Salvar todos os empréstimos no banco local
 def salvar_emprestimos():
     global emprestimos
+    print("💾 [DEBUG] salvar_emprestimos() iniciou.")
+    print(f"💾 [DEBUG] Total na lista global: {len(emprestimos)}")
+
     conn = sqlite3.connect(get_local_db_path())
     cursor = conn.cursor()
 
-    for emprestimo in emprestimos:
-        # Garante que o ID nunca será nulo
-        if not emprestimo[0] or emprestimo[0] == "null":
-            emprestimo = (str(uuid.uuid4()),) + emprestimo[1:]
+    for i, emprestimo in enumerate(emprestimos):
+        print(f"    ➡ [DEBUG] {i}-ésimo emprestimo:", emprestimo, " (len=", len(emprestimo), ")")
+
+        if len(emprestimo) != 8:
+            print("    ⚠️ [DEBUG] Corrigindo para 8 colunas.")
+            emprestimo = emprestimo + tuple("" for _ in range(8 - len(emprestimo)))
 
         cursor.execute("""
             INSERT OR REPLACE INTO emprestimos (
@@ -40,14 +45,18 @@ def salvar_emprestimos():
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, emprestimo)
 
-
     conn.commit()
-    conn.close()
 
+    cursor.execute("SELECT COUNT(*) FROM emprestimos")
+    total = cursor.fetchone()[0]
+    print("✅ [DEBUG] Total de registros no banco agora:", total)
+
+    conn.close()
+    print("💾 [DEBUG] salvar_emprestimos() terminou.")
 
 
 # 🔹 Criar e salvar um novo empréstimo
-def adicionar_emprestimo(id_cliente, valor, data_inicio, parcelas, observacao=""):
+def adicionar_emprestimo(id_cliente, valor, data_inicio, parcelas, observacao="", juros="0", prestacao="0"):
     """
     Cria um novo empréstimo com UUID e salva no banco.
     Retorna o registro criado como tupla.
@@ -55,12 +64,20 @@ def adicionar_emprestimo(id_cliente, valor, data_inicio, parcelas, observacao=""
     global emprestimos
 
     novo_id = str(uuid.uuid4())
-    novo_emprestimo = (novo_id, id_cliente, valor, data_inicio, parcelas, observacao)
+    novo_emprestimo = (
+        novo_id,
+        id_cliente,
+        valor,
+        data_inicio,
+        parcelas,
+        observacao,
+        juros,
+        prestacao
+    )
 
     emprestimos.append(novo_emprestimo)
     salvar_emprestimos()
 
-    print(f"✅ Novo empréstimo criado: {novo_emprestimo}")
     return novo_emprestimo
 
 
