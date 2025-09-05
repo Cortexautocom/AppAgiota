@@ -1,6 +1,7 @@
 # 🔧 Sistema e banco
 import os, sys
 import uuid
+from ui.login_ui import LoginWindow
 
 from ui.clientes_ui import ClientForm
 # 🎨 Interface gráfica (PySide6)
@@ -877,12 +878,24 @@ class SaveWorker(QRunnable):
 # =====================================================================
 # Execução principal
 # =====================================================================
+from ui.login_ui import LoginWindow
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    
+
     verificar_tabelas()
-    main_window = ModernWindow()
-    splash = SplashScreen(parent=main_window)
+
+    def iniciar_app(usuario):
+        app.usuario_logado = usuario
+        main_window = ModernWindow()
+        main_window.show()
+
+    def abrir_login():
+        app.login_window = LoginWindow(iniciar_app)
+        app.login_window.show()
+
+    splash = SplashScreen(on_finished=abrir_login)
     splash.show()
+
     sys.exit(app.exec())

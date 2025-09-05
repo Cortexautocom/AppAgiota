@@ -156,3 +156,63 @@ def baixar_movimentacoes():
 
 def enviar_movimentacoes(registros):
     return enviar_tabela("movimentacoes", registros)
+
+
+
+# ==========================
+# 🔹 USUÁRIOS (LOGIN)
+# ==========================
+import bcrypt
+
+def criar_usuario(email, senha, id_empresa):
+    """Cria um novo usuário com senha criptografada."""
+    senha_hash = bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+    novo_usuario = {
+        "email": email,
+        "senha_hash": senha_hash,
+        "id_empresa": id_empresa
+    }
+
+    try:
+        response = supabase.table("usuarios").insert(novo_usuario).execute()
+        return response.data
+    except Exception as e:
+        print(f"⚠ Erro ao criar usuário: {e}")
+        return None
+
+
+def validar_login(email, senha):
+    """Valida login comparando senha com hash armazenado no Supabase."""
+    try:
+        response = supabase.table("usuarios").select("*").eq("email", email).execute()
+        if not response.data:
+            return None  # usuário não encontrado
+
+        usuario = response.data[0]
+        senha_ok = bcrypt.checkpw(senha.encode("utf-8"), usuario["senha_hash"].encode("utf-8"))
+
+        if senha_ok:
+            return usuario  # retorna dados do usuário (inclusive id_empresa)
+        else:
+            return None
+    except Exception as e:
+        print(f"⚠ Erro ao validar login: {e}")
+        return None
+
+
+def redefinir_senha(email, nova_senha):
+    """Atualiza a senha de um usuário existente."""
+    import bcrypt
+    try:
+        response = supabase.table("usuarios").select("id").eq("email", email).execute()
+        if not response.data:
+            return False  # usuário não encontrado
+
+        senha_hash = bcrypt.hashpw(nova_senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+        supabase.table("usuarios").update({"senha_hash": senha_hash}).eq("email", email).execute()
+        return True
+    except Exception as e:
+        print(f"⚠ Erro ao redefinir senha: {e}")
+        return False
