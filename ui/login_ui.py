@@ -50,6 +50,9 @@ class LoginWindow(QWidget):
         inner_layout.addWidget(QLabel("Senha:"))
         inner_layout.addWidget(self.input_senha)
 
+        # 🔹 Pressionar Enter na senha chama o login
+        self.input_senha.returnPressed.connect(self.tentar_login)
+
         # Botão login
         btn_login = QPushButton("Entrar")
         btn_login.setStyleSheet("""
@@ -92,10 +95,7 @@ class LoginWindow(QWidget):
         else:
             QMessageBox.critical(self, "Erro", "Email ou senha incorretos.")
 
-
     def abrir_reset(self):
         from ui.reset_password_ui import ResetPasswordWindow
         self.reset_window = ResetPasswordWindow(self)
         self.reset_window.show()
-
-
