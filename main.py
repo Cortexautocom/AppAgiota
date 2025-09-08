@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QPushButton, QFrame, QTableWidget,
     QTableWidgetItem, QHeaderView, QComboBox, QGraphicsDropShadowEffect,
-    QMessageBox, QStyleFactory, QAbstractItemView
+    QMessageBox, QAbstractItemView
 )
 
 from PySide6.QtGui import QColor
@@ -27,14 +27,6 @@ from ui.financeiro_ui import FinanceiroWindow
 from config import criar_tabelas_local, get_local_db_path, verificar_tabelas
 
 criar_tabelas_local()
-
-# ☁️ Supabase (sincronização)
-from supabase_utils import (
-    baixar_clientes, enviar_clientes,
-    baixar_emprestimos, enviar_emprestimos,
-    baixar_parcelas, enviar_parcelas,
-    baixar_movimentacoes, enviar_movimentacoes
-)
 
 # 📦 Módulos de dados
 from clientes import (
@@ -287,7 +279,8 @@ class ModernWindow(QMainWindow):
                     data.get("Telefone", ""),
                     data.get("Endereço", ""),
                     data.get("Cidade", ""),
-                    data.get("Indicação", "")
+                    data.get("Indicação", ""),
+                    self.id_empresa  # 🔹 vínculo à empresa (já guardado no ModernWindow)
                 )
                 self.clients.append(cliente_tuple)
             else:  # ✅ Edição de cliente existente
@@ -299,11 +292,10 @@ class ModernWindow(QMainWindow):
                     data.get("Telefone", ""),
                     data.get("Endereço", ""),
                     data.get("Cidade", ""),
-                    data.get("Indicação", "")
+                    data.get("Indicação", ""),
+                    self.id_empresa  # 🔹 mantém vínculo à empresa
                 )
                 self.clients[edit_index] = cliente_tuple
-
-            
 
             # Salva no banco local
             self.save_local_db()
@@ -325,8 +317,10 @@ class ModernWindow(QMainWindow):
             print(f"ℹ Falha ao montar lista de cidades: {e}")
             cities = []
 
-        self.form = ClientForm(callback, initial_data=initial_data, cities=cities)
+        self.form = ClientForm(callback, initial_data=initial_data, cities=cities, parent=self)
+        self.form.setAttribute(Qt.WA_DeleteOnClose)  # fecha junto com ModernWindow
         self.form.show()
+
 
     # ======== Tela de Pesquisa ========
     def show_search_screen(self):
@@ -889,6 +883,7 @@ if __name__ == "__main__":
     def iniciar_app(usuario):
         app.usuario_logado = usuario
         main_window = ModernWindow()
+        main_window.id_empresa = usuario["id_empresa"]
         main_window.show()
 
     def abrir_login():

@@ -24,6 +24,7 @@ def criar_tabelas_local():
             endereco TEXT,
             cidade TEXT,
             indicacao TEXT
+            id_empresa TEXT
         )
     """)
 

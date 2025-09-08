@@ -15,8 +15,9 @@ class ClientForm(QWidget):
     Campos: Nome, CPF, Endereço, Cidade, Telefone, Indicação.
     Pode ser usado para criar ou editar (se data inicial for passada).
     """
-    def __init__(self, parent_callback, initial_data=None, cities=None):
-        super().__init__()
+    def __init__(self, parent_callback, initial_data=None, cities=None, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
         self.setWindowTitle("Cliente")
         self.setFixedSize(340, 400)
         self.setStyleSheet("background-color: #1c2331; color: white;")

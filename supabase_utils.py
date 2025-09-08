@@ -20,7 +20,7 @@ TABELAS = {
     "clientes": {
         "local": "clientes",
         "remota": "clientes",
-        "campos": ["id_cliente", "nome", "cpf", "telefone", "endereco", "cidade", "indicacao"],
+        "campos": ["id_cliente", "nome", "cpf", "telefone", "endereco", "cidade", "indicacao", "id_empresa"],
         "chave": "id_cliente"
     },
     "emprestimos": {

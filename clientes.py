@@ -32,8 +32,8 @@ def salvar_clientes(lista_clientes):
     for cliente in lista_clientes:
         cur.execute("""
             INSERT INTO clientes (
-                id_cliente, nome, cpf, telefone, endereco, cidade, indicacao
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                id_cliente, nome, cpf, telefone, endereco, cidade, indicacao, id_empresa
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, cliente)
 
     conn.commit()
