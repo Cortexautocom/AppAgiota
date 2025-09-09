@@ -41,11 +41,6 @@ from parcelas import (
     parcelas, carregar_parcelas, salvar_parcelas,
     sincronizar_parcelas_download, sincronizar_parcelas_upload
 )
-from movimentacoes import (
-    movimentacoes, carregar_movimentacoes, salvar_movimentacoes,
-    sincronizar_movimentacoes_download, sincronizar_movimentacoes_upload
-)
-
 
 def resource_path(relative_path):
     """Obtém o caminho do recurso (funciona no .exe e no modo normal)."""
@@ -63,9 +58,9 @@ def resource_path(relative_path):
 # ModernWindow
 # =====================================================================
 class ModernWindow(QMainWindow):
-    def __init__(self, id_empresa):
+    def __init__(self, id_usuario):
         super().__init__()
-        self.id_empresa = id_empresa
+        self.id_usuario = id_usuario
         self.offset = None
 
         self.setWindowTitle("O Agiota")
@@ -98,7 +93,6 @@ class ModernWindow(QMainWindow):
         self.clients = clientes
         self.emprestimos = emprestimos
         self.parcelas = parcelas
-        self.movimentacoes = movimentacoes
 
         # 🔹 Carrega dados do banco local na inicialização
         self.load_local_db()
@@ -210,12 +204,25 @@ class ModernWindow(QMainWindow):
 
     # ======== Ações de janela ========
     def handle_close(self):
-        """Salva no SQLite e no Supabase antes de fechar, em segundo plano."""
+        """Salva no SQLite e depois envia tudo ao Supabase antes de fechar."""
         try:
+            # 🔹 Primeiro salva no banco local
             self.save_local_db_background()
+
+            # 🔹 Depois envia tudo para o Supabase
+            from clientes import sincronizar_clientes_upload
+            from emprestimos import sincronizar_emprestimos_upload
+            from parcelas import sincronizar_parcelas_upload            
+
+            sincronizar_clientes_upload()
+            sincronizar_emprestimos_upload()
+            sincronizar_parcelas_upload()
+
         except Exception as e:
             print(f"⚠ Erro ao salvar antes de fechar: {e}")
+
         self.close()
+
 
     def mouse_press_event(self, event):
         """Captura a posição inicial para permitir arrastar a janela."""
@@ -282,7 +289,7 @@ class ModernWindow(QMainWindow):
                     data.get("Endereço", ""),
                     data.get("Cidade", ""),
                     data.get("Indicação", ""),
-                    self.id_empresa  # 🔹 vínculo à empresa (já guardado no ModernWindow)
+                    self.id_usuario  
                 )
                 self.clients.append(cliente_tuple)
             else:  # ✅ Edição de cliente existente
@@ -295,7 +302,7 @@ class ModernWindow(QMainWindow):
                     data.get("Endereço", ""),
                     data.get("Cidade", ""),
                     data.get("Indicação", ""),
-                    self.id_empresa  # 🔹 mantém vínculo à empresa
+                    self.id_usuario  
                 )
                 self.clients[edit_index] = cliente_tuple
 
@@ -692,13 +699,11 @@ class ModernWindow(QMainWindow):
 
     # ======== Banco Local ========
     def load_local_db(self):
-        """Carrega dados locais de clientes, empréstimos, parcelas e movimentações."""
+        
         try:
-            self.clients = carregar_clientes(self.id_empresa)
+            self.clients = carregar_clientes(self.id_usuario)
             self.emprestimos = carregar_emprestimos()
-            self.parcelas = carregar_parcelas()
-            self.movimentacoes = carregar_movimentacoes()
-
+            self.parcelas = carregar_parcelas()   
             
         except Exception as e:
             print(f"⚠ Erro ao carregar banco local: {e}")
@@ -709,8 +714,7 @@ class ModernWindow(QMainWindow):
         try:
             salvar_clientes(self.clients)
             salvar_emprestimos()
-            salvar_parcelas()
-            salvar_movimentacoes()
+            salvar_parcelas()            
             
         except Exception as e:
             print(f"⚠ Erro ao salvar no banco local: {e}")
@@ -792,11 +796,10 @@ class ModernWindow(QMainWindow):
 
         # 🔹 Sincroniza dados de cada módulo
         try:
-            sincronizar_clientes_download(self.id_empresa)
+            sincronizar_clientes_download(self.id_usuario)
             sincronizar_emprestimos_download()
             sincronizar_parcelas_download()
-            sincronizar_movimentacoes_download()
-
+            
             self.load_local_db()
             self.show_search_screen()
             self.rebuild_search_filters()
@@ -829,8 +832,7 @@ class ModernWindow(QMainWindow):
             sincronizar_clientes_upload()
             sincronizar_emprestimos_upload()
             sincronizar_parcelas_upload()
-            sincronizar_movimentacoes_upload()
-
+            
             QTimer.singleShot(
                 2000,
                 lambda: self.status_label.setText("✅ Pronto, tudo salvo. Pode ficar tranquilo!")
@@ -884,9 +886,20 @@ if __name__ == "__main__":
 
     def iniciar_app(usuario):
         app.usuario_logado = usuario
-        main_window = ModernWindow(usuario["id_empresa"])  # ✅ passa direto no construtor
+
+        # 🔹 Baixar dados do usuário logado no Supabase
+        from clientes import sincronizar_clientes_download
+        from emprestimos import sincronizar_emprestimos_download
+        from parcelas import sincronizar_parcelas_download
+
+        sincronizar_clientes_download(usuario["id"])  # agora filtra por id_usuario
+        sincronizar_emprestimos_download()
+        sincronizar_parcelas_download()
+
+        # 🔹 Agora abre a janela principal
+        main_window = ModernWindow(usuario["id"])  # passa id_usuario
         main_window.show()
-    
+
     def abrir_login():
         app.login_window = LoginWindow(iniciar_app)
         app.login_window.show()

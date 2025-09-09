@@ -24,7 +24,7 @@ def criar_tabelas_local():
             endereco TEXT,
             cidade TEXT,
             indicacao TEXT,
-            id_empresa TEXT
+            id_usuario TEXT
         )
     """)
 
@@ -62,20 +62,6 @@ def criar_tabelas_local():
         )
     """)
 
-
-    # 🔹 Tabela movimentacoes
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS movimentacoes (
-            id TEXT PRIMARY KEY,
-            tipo TEXT,
-            valor TEXT,
-            data TEXT,
-            descricao TEXT,
-            id_relacionado TEXT,
-            origem TEXT
-        )
-    """)
-
     conn.commit()
     conn.close()
 
@@ -88,7 +74,7 @@ def verificar_tabelas():
     conn = sqlite3.connect(get_local_db_path())
     cur = conn.cursor()
 
-    esperadas = ["clientes", "emprestimos", "parcelas", "movimentacoes"]
+    esperadas = ["clientes", "emprestimos", "parcelas"]
 
     cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
     existentes = {row[0] for row in cur.fetchall()}

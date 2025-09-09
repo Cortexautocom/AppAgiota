@@ -20,7 +20,7 @@ TABELAS = {
     "clientes": {
         "local": "clientes",
         "remota": "clientes",
-        "campos": ["id_cliente", "nome", "cpf", "telefone", "endereco", "cidade", "indicacao", "id_empresa"],
+        "campos": ["id_cliente", "nome", "cpf", "telefone", "endereco", "cidade", "indicacao", "id_usuario"],
         "chave": "id_cliente"
     },
     "emprestimos": {
@@ -38,14 +38,7 @@ TABELAS = {
             "residual", "pago", "data_pagamento"
         ],
         "chave": "id"
-    },
-
-    "movimentacoes": {
-        "local": "movimentacoes",
-        "remota": "movimentacoes",
-        "campos": ["id", "tipo", "valor", "data", "descricao", "id_relacionado", "origem"],  # ✅ inclui id
-        "chave": "id"
-    }
+    },    
 }
 
 LOCAL_DB = "dados.db"
@@ -133,10 +126,37 @@ def enviar_tabela(nome, registros):
 # ==========================
 # 🔹 FUNÇÕES ESPECÍFICAS POR MÓDULO
 # ==========================
-def baixar_clientes(id_empresa):
+def baixar_clientes(id_usuario):
+    """Baixa somente os clientes do usuário informado e salva no SQLite local."""
     try:
-        response = supabase.table("clientes").select("*").eq("id_empresa", id_empresa).execute()
-        return response.data if response.data else []
+        print(f"☁️ Baixando clientes do Supabase para usuário {id_usuario}...")
+        response = supabase.table("clientes").select("*").eq("id_usuario", id_usuario).execute()
+        data = response.data if hasattr(response, "data") else []
+
+        conn = sqlite3.connect(LOCAL_DB)
+        cur = conn.cursor()
+
+        # Confirma se a tabela existe
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='clientes'")
+        if not cur.fetchone():
+            raise RuntimeError("⚠ A tabela local 'clientes' não existe! Rode verificar_tabelas() antes.")
+
+        # Limpa e insere dados
+        cur.execute("DELETE FROM clientes")
+        for item in data:
+            valores = [item.get(c, "") for c in TABELAS["clientes"]["campos"]]
+            placeholders = ", ".join(["?"] * len(valores))
+            cur.execute(f"""
+                INSERT INTO clientes ({', '.join(TABELAS["clientes"]["campos"])})
+                VALUES ({placeholders})
+            """, valores)
+
+        conn.commit()
+        conn.close()
+
+        print(f"✅ {len(data)} clientes salvos localmente para usuário {id_usuario}.")
+        return data
+
     except Exception as e:
         print(f"⚠ Erro ao baixar clientes: {e}")
         return []
@@ -170,14 +190,16 @@ def enviar_movimentacoes(registros):
 # ==========================
 import bcrypt
 
-def criar_usuario(email, senha, id_empresa):
-    """Cria um novo usuário com senha criptografada."""
+def criar_usuario(nome, cpf, email, whatsapp, senha):
+    """Cria um novo usuário com senha criptografada e dados extras."""
     senha_hash = bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
     novo_usuario = {
+        "nome": nome,
+        "cpf": cpf,
         "email": email,
-        "senha_hash": senha_hash,
-        "id_empresa": id_empresa
+        "whatsapp": whatsapp,
+        "senha_hash": senha_hash
     }
 
     try:
@@ -186,6 +208,7 @@ def criar_usuario(email, senha, id_empresa):
     except Exception as e:
         print(f"⚠ Erro ao criar usuário: {e}")
         return None
+
 
 
 def validar_login(email, senha):
