@@ -63,8 +63,9 @@ def resource_path(relative_path):
 # ModernWindow
 # =====================================================================
 class ModernWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, id_empresa):
         super().__init__()
+        self.id_empresa = id_empresa
         self.offset = None
 
         self.setWindowTitle("O Agiota")
@@ -147,6 +148,7 @@ class ModernWindow(QMainWindow):
 
         self.setCentralWidget(shell)
         self.center()
+        self.load_local_db()
 
     # ======== Top bar ========
     def create_top_bar(self):
@@ -692,7 +694,7 @@ class ModernWindow(QMainWindow):
     def load_local_db(self):
         """Carrega dados locais de clientes, empréstimos, parcelas e movimentações."""
         try:
-            self.clients = carregar_clientes()
+            self.clients = carregar_clientes(self.id_empresa)
             self.emprestimos = carregar_emprestimos()
             self.parcelas = carregar_parcelas()
             self.movimentacoes = carregar_movimentacoes()
@@ -790,7 +792,7 @@ class ModernWindow(QMainWindow):
 
         # 🔹 Sincroniza dados de cada módulo
         try:
-            sincronizar_clientes_download()
+            sincronizar_clientes_download(self.id_empresa)
             sincronizar_emprestimos_download()
             sincronizar_parcelas_download()
             sincronizar_movimentacoes_download()
@@ -882,10 +884,9 @@ if __name__ == "__main__":
 
     def iniciar_app(usuario):
         app.usuario_logado = usuario
-        main_window = ModernWindow()
-        main_window.id_empresa = usuario["id_empresa"]
+        main_window = ModernWindow(usuario["id_empresa"])  # ✅ passa direto no construtor
         main_window.show()
-
+    
     def abrir_login():
         app.login_window = LoginWindow(iniciar_app)
         app.login_window.show()

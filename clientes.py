@@ -6,20 +6,21 @@ from config import get_local_db_path
 clientes = []
 
 # 🔹 Função para carregar os clientes do banco local
-def carregar_clientes():    
+def carregar_clientes(id_empresa=None):    
     conn = sqlite3.connect(get_local_db_path())
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM clientes")
+
+    if id_empresa:
+        cursor.execute("SELECT * FROM clientes WHERE id_empresa = ?", (id_empresa,))
+    else:
+        cursor.execute("SELECT * FROM clientes")
+
     clientes_db = cursor.fetchall()
     conn.close()    
 
-    # Atualiza a variável global
     global clientes
     clientes = clientes_db
-
-    # E também retorna a lista, caso alguém queira usar
     return clientes_db
-
 
 # 🔹 Função para salvar os clientes no banco local (agora recebe a lista como argumento)
 def salvar_clientes(lista_clientes):
@@ -45,9 +46,9 @@ def salvar_clientes(lista_clientes):
 
 
 # 🔹 Função para baixar clientes da nuvem (Supabase)
-def sincronizar_clientes_download():
+def sincronizar_clientes_download(id_empresa):
     global clientes
-    clientes = baixar_clientes()
+    clientes = baixar_clientes(id_empresa)
 
 # 🔹 Função para enviar clientes para a nuvem (Supabase)
 def sincronizar_clientes_upload():

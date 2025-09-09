@@ -133,8 +133,14 @@ def enviar_tabela(nome, registros):
 # ==========================
 # 🔹 FUNÇÕES ESPECÍFICAS POR MÓDULO
 # ==========================
-def baixar_clientes():
-    return baixar_tabela("clientes")
+def baixar_clientes(id_empresa):
+    try:
+        response = supabase.table("clientes").select("*").eq("id_empresa", id_empresa).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"⚠ Erro ao baixar clientes: {e}")
+        return []
+
 
 def enviar_clientes(registros):
     return enviar_tabela("clientes", registros)

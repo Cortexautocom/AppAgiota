@@ -23,7 +23,7 @@ def criar_tabelas_local():
             telefone TEXT,
             endereco TEXT,
             cidade TEXT,
-            indicacao TEXT
+            indicacao TEXT,
             id_empresa TEXT
         )
     """)
