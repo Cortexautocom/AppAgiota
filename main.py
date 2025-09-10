@@ -796,8 +796,8 @@ class ModernWindow(QMainWindow):
         # 🔹 Sincroniza dados de cada módulo
         try:
             sincronizar_clientes_download(self.id_usuario)
-            sincronizar_emprestimos_download()
-            sincronizar_parcelas_download()
+            sincronizar_emprestimos_download(self.id_usuario)   # ✅ corrigido
+            sincronizar_parcelas_download(self.id_usuario)
             
             self.load_local_db()
             self.show_search_screen()

@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QGraphicsDropShadowEffect
 from PySide6.QtCore import Qt
 import uuid
 
-from emprestimos import emprestimos, salvar_emprestimos
+import emprestimos
 from parcelas import salvar_parcelas
 
 
@@ -219,9 +219,13 @@ class EmprestimoForm(QWidget):
             id_usuario
         )
 
+        # 🔹 Debug
+        print("🆕 Novo empréstimo criado (antes de salvar):", novo_emprestimo)
+
         # 🔹 Salva localmente
-        emprestimos.append(novo_emprestimo)
-        salvar_emprestimos()
+        emprestimos.emprestimos.append(novo_emprestimo)
+        print("📋 Lista emprestimos em memória agora tem:", len(emprestimos.emprestimos), "itens")
+        emprestimos.salvar_emprestimos()
 
         # 🔹 Envia empréstimo para o Supabase
         from emprestimos import sincronizar_emprestimos_upload
@@ -249,6 +253,8 @@ class EmprestimoForm(QWidget):
             )
             novas_parcelas.append(nova_parcela)
 
+        print(f"🧾 {len(novas_parcelas)} parcelas geradas para o empréstimo {emprestimo_id}")
+
         from parcelas import salvar_parcelas
         salvar_parcelas(novas_parcelas)
 
@@ -263,5 +269,3 @@ class EmprestimoForm(QWidget):
             "parcelas": novas_parcelas
         })
         self.close()
-
-
