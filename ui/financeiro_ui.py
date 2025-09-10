@@ -110,7 +110,10 @@ class FinanceiroWindow(QWidget):
         # Tabela de empréstimos (agora com 4 colunas: ID oculto + Data + Valor + Status)
         tabela = QTableWidget(0, 8)
         tabela.setSelectionMode(QAbstractItemView.NoSelection)
-        tabela.setHorizontalHeaderLabels(["ID", "Data", "Valor", "Parcelas", "Juros", "Prestação", "Observação", "Status"])
+        tabela.setHorizontalHeaderLabels([
+            "ID", "Data inicial", "Último venc.", "Valor", "Parcelas",
+            "Juros", "Taxa", "Status"
+        ])
         tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         tabela.setColumnHidden(0, True)  # 🔹 Esconde a coluna do ID
         tabela.setStyleSheet("""
@@ -131,18 +134,26 @@ class FinanceiroWindow(QWidget):
         for linha, emp in enumerate(emprestimos_cliente):
             tabela.insertRow(linha)
 
-            # emp = (id, id_cliente, valor, data_inicio, parcelas, observacao)
-
             # ID oculto
             item_id = QTableWidgetItem(emp[0])
             item_id.setTextAlignment(Qt.AlignCenter)
             tabela.setItem(linha, 0, item_id)
 
-            # Data
+            # Data inicial
             item_data = QTableWidgetItem(emp[3] or "")
             item_data.setFlags(item_data.flags() & ~Qt.ItemIsEditable)
             item_data.setTextAlignment(Qt.AlignCenter)
             tabela.setItem(linha, 1, item_data)
+
+            # Último venc. (maior vencimento das parcelas)
+            from parcelas import carregar_parcelas_por_emprestimo
+            parcelas_emp = carregar_parcelas_por_emprestimo(emp[0])  # emp[0] = id do empréstimo
+            datas_venc = [p[4] for p in parcelas_emp if p[4]]  # índice 4 = vencimento
+            ultimo_venc = max(datas_venc) if datas_venc else ""
+            item_ultimo = QTableWidgetItem(ultimo_venc)
+            item_ultimo.setFlags(item_ultimo.flags() & ~Qt.ItemIsEditable)
+            item_ultimo.setTextAlignment(Qt.AlignCenter)
+            tabela.setItem(linha, 2, item_ultimo)
 
             # Valor
             try:
@@ -150,35 +161,28 @@ class FinanceiroWindow(QWidget):
                 valor_fmt = f"R$ {valor_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             except (ValueError, TypeError):
                 valor_fmt = emp[2] or ""
-
             item_valor = QTableWidgetItem(valor_fmt)
             item_valor.setFlags(item_valor.flags() & ~Qt.ItemIsEditable)
             item_valor.setTextAlignment(Qt.AlignCenter)
-            tabela.setItem(linha, 2, item_valor)
+            tabela.setItem(linha, 3, item_valor)
 
             # Parcelas
             item_parcelas = QTableWidgetItem(str(emp[4]) or "")
             item_parcelas.setFlags(item_parcelas.flags() & ~Qt.ItemIsEditable)
             item_parcelas.setTextAlignment(Qt.AlignCenter)
-            tabela.setItem(linha, 3, item_parcelas)
+            tabela.setItem(linha, 4, item_parcelas)
 
             # Juros
             item_juros = QTableWidgetItem(self._fmt_br(emp[6]))
             item_juros.setFlags(item_juros.flags() & ~Qt.ItemIsEditable)
             item_juros.setTextAlignment(Qt.AlignCenter)
-            tabela.setItem(linha, 4, item_juros)
+            tabela.setItem(linha, 5, item_juros)
 
-            # Prestação
-            item_prest = QTableWidgetItem(self._fmt_br(emp[7]))
-            item_prest.setFlags(item_prest.flags() & ~Qt.ItemIsEditable)
-            item_prest.setTextAlignment(Qt.AlignCenter)
-            tabela.setItem(linha, 5, item_prest)
-
-            # Observação
-            item_obs = QTableWidgetItem(emp[5] or "")
-            item_obs.setFlags(item_obs.flags() & ~Qt.ItemIsEditable)
-            item_obs.setTextAlignment(Qt.AlignCenter)
-            tabela.setItem(linha, 6, item_obs)
+            # Taxa (antes Observação → agora na coluna 6)
+            item_taxa = QTableWidgetItem(emp[5] or "")
+            item_taxa.setFlags(item_taxa.flags() & ~Qt.ItemIsEditable)
+            item_taxa.setTextAlignment(Qt.AlignCenter)
+            tabela.setItem(linha, 6, item_taxa)
 
             # Status
             status = "Em andamento"
@@ -187,7 +191,6 @@ class FinanceiroWindow(QWidget):
             item_status.setForeground(Qt.yellow)
             item_status.setTextAlignment(Qt.AlignCenter)
             tabela.setItem(linha, 7, item_status)
-
 
         # 🔹 Conectar duplo clique para abrir parcelas
         tabela.cellDoubleClicked.connect(lambda row, col: self.abrir_parcelas(row))

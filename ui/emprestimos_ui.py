@@ -1,9 +1,9 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QFrame, QLabel, QLineEdit, QPushButton, QMessageBox, QFormLayout, QHBoxLayout
+    QWidget, QVBoxLayout, QFrame, QLabel, QLineEdit, QPushButton, QMessageBox, QFormLayout, QHBoxLayout, QDateEdit
 )
 from PySide6.QtGui import QColor, QIntValidator
 from PySide6.QtWidgets import QGraphicsDropShadowEffect
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QDate
 import uuid
 
 import emprestimos
@@ -48,6 +48,14 @@ class EmprestimoForm(QWidget):
         form.setLabelAlignment(Qt.AlignLeft)
         form.setFormAlignment(Qt.AlignTop)
         form.setVerticalSpacing(8)
+
+        # ===== Data do empréstimo =====
+        self.inp_data = QDateEdit()
+        self.inp_data.setDisplayFormat("dd/MM/yyyy")
+        self.inp_data.setDate(QDate.currentDate())  # já inicia com hoje
+        self.inp_data.setCalendarPopup(True)
+        self.inp_data.setStyleSheet("background-color:#2c3446; color:white; padding:6px; border-radius:6px;")
+        form.addRow(QLabel("Data do empréstimo:"), self.inp_data)    
 
         # ===== Valor financiado =====
         self.inp_capital = QLineEdit()
@@ -169,7 +177,18 @@ class EmprestimoForm(QWidget):
             total_juros = float(juros_txt)
             total_pago = capital + total_juros
             p = total_pago / n
+
+            # 🔹 Descobrir a taxa aproximada
             taxa = 0
+            melhor_dif = float("inf")
+            taxa_calc = 0
+            for t in [i/10000 for i in range(1, 10000)]:  # 0.01% até 100% a.m
+                p_calc = (capital * t) / (1 - (1 + t) ** -n)
+                dif = abs(p_calc - p)
+                if dif < melhor_dif:
+                    melhor_dif = dif
+                    taxa_calc = t
+            taxa = taxa_calc
         else:
             QMessageBox.warning(self, "Erro", "Informe taxa ou juros.")
             return
@@ -183,9 +202,11 @@ class EmprestimoForm(QWidget):
         self.lbl_resumo.show()
 
         self.lbl_prestacao.setText(f"Valor da prestação: {prestacao_fmt}")
+        taxa_fmt = f"{taxa*100:.2f}% a.m"
         self.lbl_resumo.setText(
             f"O total desse financiamento de {n} parcelas de {prestacao_fmt} "
-            f"é {total_pago_fmt}, sendo {total_juros_fmt} de juros."
+            f"é {total_pago_fmt}, sendo {total_juros_fmt} de juros.\n"
+            f"Taxa aproximada: {taxa_fmt}"
         )
 
         self._ultimo_calc = {
@@ -211,7 +232,7 @@ class EmprestimoForm(QWidget):
             emprestimo_id,
             self.id_cliente,
             str(dados["capital"]),
-            "01/09/2025",   # depois troque para a data atual
+            self.inp_data.date().toString("dd/MM/yyyy"),
             str(dados["meses"]),
             f"Taxa {dados['taxa']*100:.2f}%",
             str(dados["total_juros"]),
