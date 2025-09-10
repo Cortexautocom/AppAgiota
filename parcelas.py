@@ -6,22 +6,22 @@ from config import get_local_db_path
 # Lista que vai guardar as parcelas em memória
 parcelas = []
 
-
 # 🔹 Carregar todas as parcelas do banco local
-def carregar_parcelas():
-    
+def carregar_parcelas(id_usuario=None):
     conn = sqlite3.connect(get_local_db_path())
     cur = conn.cursor()
-    cur.execute("SELECT * FROM parcelas")
+
+    if id_usuario:
+        cur.execute("SELECT * FROM parcelas WHERE id_usuario = ?", (id_usuario,))
+    else:
+        cur.execute("SELECT * FROM parcelas")
+
     dados = cur.fetchall()
     conn.close()
-
-    
 
     global parcelas
     parcelas = dados
     return dados
-
 
 # 🔹 Carregar parcelas de um empréstimo específico
 def carregar_parcelas_por_emprestimo(id_emprestimo):
@@ -57,8 +57,8 @@ def salvar_parcelas(lista=None):
             INSERT OR REPLACE INTO parcelas (
                 id, id_emprestimo, numero, valor, vencimento,
                 juros, desconto, parcela_atualizada, valor_pago,
-                residual, pago, data_pagamento
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                residual, pago, data_pagamento, id_usuario
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, parcela)
 
     conn.commit()
@@ -109,22 +109,35 @@ def adicionar_ou_atualizar_parcela(
 
 
 # 🔹 Baixar da nuvem
-def sincronizar_parcelas_download():
+def sincronizar_parcelas_download(id_usuario):
     global parcelas
-    parcelas = baixar_parcelas()
-    print(f"⬇️ {len(parcelas)} parcelas baixadas do Supabase.")
+    parcelas = baixar_parcelas(id_usuario)
 
 
 # 🔹 Enviar para a nuvem
 def sincronizar_parcelas_upload():
     global parcelas
-    parcelas_corrigidas = []
+    import sqlite3
+    from config import get_local_db_path
+
+    conn = sqlite3.connect(get_local_db_path())
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM emprestimos")
+    emprestimos_existentes = {row[0] for row in cur.fetchall()}
+    conn.close()
+
+    parcelas_validas = []
     for p in parcelas:
-        if not p[0] or p[0] == "null":
-            novo_id = str(uuid.uuid4())
-            p = (novo_id,) + p[1:]
-        parcelas_corrigidas.append(p)
-    parcelas = parcelas_corrigidas
-    enviar_parcelas(parcelas)
-    print(f"⬆️ {len(parcelas)} parcelas enviadas ao Supabase.")
+        if p[1] in emprestimos_existentes:  # p[1] = id_emprestimo
+            parcelas_validas.append(p)
+        else:
+            print(f"⚠ Ignorando parcela {p[0]}: empréstimo {p[1]} não encontrado.")
+
+    if not parcelas_validas:
+        print("ℹ Nenhuma parcela válida para enviar.")
+        return
+
+    enviar_parcelas(parcelas_validas)
+    print(f"⬆️ {len(parcelas_validas)} parcelas enviadas ao Supabase.")
+
 

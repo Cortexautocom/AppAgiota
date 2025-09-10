@@ -2,6 +2,7 @@ from supabase import create_client, Client
 import sqlite3
 import os
 from dotenv import load_dotenv
+import bcrypt
 
 # ==========================
 # 🔹 CONFIGURAÇÕES DO SUPABASE
@@ -26,7 +27,7 @@ TABELAS = {
     "emprestimos": {
         "local": "emprestimos",
         "remota": "emprestimos",
-        "campos": ["id", "id_cliente", "valor", "data_inicio", "parcelas", "observacao"],  # ✅ inclui id
+        "campos": ["id", "id_cliente", "valor", "data_inicio", "parcelas", "observacao", "juros", "prestacao", "id_usuario"],
         "chave": "id"
     },
     "parcelas": {
@@ -35,7 +36,7 @@ TABELAS = {
         "campos": [
             "id", "id_emprestimo", "numero", "valor", "vencimento",
             "juros", "desconto", "parcela_atualizada", "valor_pago",
-            "residual", "pago", "data_pagamento"
+            "residual", "pago", "data_pagamento", "id_usuario"
         ],
         "chave": "id"
     },    
@@ -165,15 +166,55 @@ def baixar_clientes(id_usuario):
 def enviar_clientes(registros):
     return enviar_tabela("clientes", registros)
 
-def baixar_emprestimos():
-    return baixar_tabela("emprestimos")
+def baixar_emprestimos(id_usuario):
+    """Baixa apenas os empréstimos do usuário informado."""
+    try:
+        response = supabase.table("emprestimos").select("*").eq("id_usuario", id_usuario).execute()
+        data = response.data if hasattr(response, "data") else []
 
+        conn = sqlite3.connect(LOCAL_DB)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM emprestimos")
+        for item in data:
+            valores = [item.get(c, "") for c in TABELAS["emprestimos"]["campos"]]
+            placeholders = ", ".join(["?"] * len(valores))
+            cur.execute(f"""
+                INSERT INTO emprestimos ({', '.join(TABELAS["emprestimos"]["campos"])})
+                VALUES ({placeholders})
+            """, valores)
+        conn.commit()
+        conn.close()
+        return data
+    except Exception as e:
+        print(f"⚠ Erro ao baixar emprestimos: {e}")
+        return []
+    
 def enviar_emprestimos(registros):
     return enviar_tabela("emprestimos", registros)
 
-def baixar_parcelas():
-    return baixar_tabela("parcelas")
+def baixar_parcelas(id_usuario):
+    """Baixa apenas as parcelas do usuário informado."""
+    try:
+        response = supabase.table("parcelas").select("*").eq("id_usuario", id_usuario).execute()
+        data = response.data if hasattr(response, "data") else []
 
+        conn = sqlite3.connect(LOCAL_DB)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM parcelas")
+        for item in data:
+            valores = [item.get(c, "") for c in TABELAS["parcelas"]["campos"]]
+            placeholders = ", ".join(["?"] * len(valores))
+            cur.execute(f"""
+                INSERT INTO parcelas ({', '.join(TABELAS["parcelas"]["campos"])})
+                VALUES ({placeholders})
+            """, valores)
+        conn.commit()
+        conn.close()
+        return data
+    except Exception as e:
+        print(f"⚠ Erro ao baixar parcelas: {e}")
+        return []
+    
 def enviar_parcelas(registros):
     return enviar_tabela("parcelas", registros)
 
@@ -188,8 +229,6 @@ def enviar_movimentacoes(registros):
 # ==========================
 # 🔹 USUÁRIOS (LOGIN)
 # ==========================
-import bcrypt
-
 def criar_usuario(nome, cpf, email, whatsapp, senha):
     """Cria um novo usuário com senha criptografada e dados extras."""
     senha_hash = bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -232,7 +271,7 @@ def validar_login(email, senha):
 
 def redefinir_senha(email, nova_senha):
     """Atualiza a senha de um usuário existente."""
-    import bcrypt
+    
     try:
         response = supabase.table("usuarios").select("id").eq("email", email).execute()
         if not response.data:

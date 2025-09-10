@@ -11,10 +11,11 @@ from parcelas import parcelas, salvar_parcelas, carregar_parcelas_por_emprestimo
 
 class ParcelasWindow(QWidget):
     """Janela para visualizar/editar parcelas de um empréstimo."""
-    def __init__(self, emprestimo, parent=None, on_save_callback=None):
+    def __init__(self, emprestimo, id_usuario, parent=None, on_save_callback=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
         self.emprestimo = emprestimo
+        self.id_usuario = id_usuario   # ✅ agora guardamos o usuário logado
         self.on_save_callback = on_save_callback
 
         self.setWindowTitle(f"Parcelas - Empréstimo {emprestimo['id']}")
@@ -75,8 +76,8 @@ class ParcelasWindow(QWidget):
             (
                 _id, _id_emp, num, valor, venc,
                 juros, desconto, parcela_atual, valor_pago,
-                residual, pago, data_pag
-            ) = parcela
+                residual, pago, data_pag, _id_usuario
+            ) = parcela   # ✅ desempacota também id_usuario
 
             self.tabela.insertRow(linha)
 
@@ -181,22 +182,21 @@ class ParcelasWindow(QWidget):
             item = QTableWidgetItem("")
             item.setTextAlignment(Qt.AlignCenter)
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-            item.setBackground(QColor("#4e586e"))  # mesma cor da tabela
+            item.setBackground(QColor("#4e586e"))
 
-            if 2 <= col <= 6:  # colunas Valor até Valor Pago
+            if 2 <= col <= 6:
                 item.setFont(fonte_negrito)
                 item.setText("R$ 0,00")
 
-                # Azul claro em Juros (3) e Valor Pago (6)
                 if col in (3, 6):
                     item.setForeground(QColor("#00bfff"))
 
-            if col == 4:  # Desconto
+            if col == 4:
                 item.setFont(fonte_negrito)
                 item.setText("R$ 0,00")
                 item.setForeground(QColor("#ff6e6e"))
 
-            if col == 7:  # Residual
+            if col == 7:
                 item.setFont(fonte_negrito)
                 item.setText("R$ 0,00")
                 item.setForeground(QColor("#ff6e6e"))
@@ -213,7 +213,7 @@ class ParcelasWindow(QWidget):
             texto = item.text().replace("R$", "").replace(".", "").replace(",", ".").strip()
             if texto == "":
                 valor = 0.0
-                item.setText("")  # mantém célula visualmente vazia
+                item.setText("")
             else:
                 try:
                     valor = float(texto)
@@ -222,7 +222,6 @@ class ParcelasWindow(QWidget):
                 except ValueError:
                     valor = 0.0
                     item.setText("")
-
 
         if item.column() in (2, 3, 4):
             try:
@@ -311,11 +310,13 @@ class ParcelasWindow(QWidget):
                 valor_pago,
                 residual,
                 "Não",
-                data_pag
+                data_pag,
+                self.id_usuario   # ✅ adiciona id_usuario
             ))
 
         parcelas[:] = novas_parcelas
-        salvar_parcelas(parcelas)        
+        salvar_parcelas(parcelas)
+        sincronizar_parcelas_upload()    
 
         print("✅ Parcelas salvas no banco local e na nuvem!")
 
@@ -323,3 +324,4 @@ class ParcelasWindow(QWidget):
             self.on_save_callback()
 
         self.close()
+

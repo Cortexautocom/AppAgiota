@@ -11,7 +11,7 @@ from parcelas import salvar_parcelas
 
 
 class EmprestimoForm(QWidget):
-    def __init__(self, parent_callback, id_cliente, parent=None):
+    def __init__(self, parent_callback, id_cliente, id_usuario, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
         self.setWindowTitle("Novo Empréstimo")
@@ -19,7 +19,8 @@ class EmprestimoForm(QWidget):
         self.setStyleSheet("background-color: #1c2331; color: white;")
 
         self.parent_callback = parent_callback
-        self.id_cliente = id_cliente 
+        self.id_cliente = id_cliente
+        self.id_usuario = id_usuario  # ✅ agora vem do construtor
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -97,15 +98,14 @@ class EmprestimoForm(QWidget):
         self.lbl_prestacao = QLabel("Valor da prestação: R$ 0,00")
         self.lbl_prestacao.setStyleSheet("font-size: 14px; color: #9fb0c7; margin-top:4px; margin-bottom:2px;")
         self.lbl_prestacao.setWordWrap(True)
-        self.lbl_prestacao.hide()   # 👈 começa escondido
+        self.lbl_prestacao.hide()
         layout.addWidget(self.lbl_prestacao)
 
         self.lbl_resumo = QLabel("")
         self.lbl_resumo.setStyleSheet("font-size: 13px; color: #ccc; margin-top:2px; margin-bottom:6px;")
         self.lbl_resumo.setWordWrap(True)
-        self.lbl_resumo.hide()      # 👈 começa escondido
+        self.lbl_resumo.hide()
         layout.addWidget(self.lbl_resumo)
-
 
         # Botão criar
         btn_save = QPushButton("💾 Criar Empréstimo")
@@ -119,9 +119,7 @@ class EmprestimoForm(QWidget):
         btn_save.clicked.connect(self.save_emprestimo)
         layout.addWidget(btn_save)
 
-        # Ajuste geral de espaçamento do painel
         layout.setSpacing(6)
-
 
     # ==============================
     def formatar_moeda(self, campo):
@@ -132,12 +130,11 @@ class EmprestimoForm(QWidget):
             campo.blockSignals(False)
             return
 
-        valor = int(texto) / 100  # transforma em centavos
+        valor = int(texto) / 100
         campo.blockSignals(True)
         campo.setText(f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
         campo.blockSignals(False)
         campo.setCursorPosition(len(campo.text()))
-
 
     # ==============================
     def calcular_prestacao(self):
@@ -160,7 +157,6 @@ class EmprestimoForm(QWidget):
             QMessageBox.warning(self, "Erro", "Preencha apenas um dos campos: ou juros ou taxa.")
             return
 
-        # Função de formatação
         def fmt_br(valor: float) -> str:
             return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -183,7 +179,6 @@ class EmprestimoForm(QWidget):
         total_juros_fmt = fmt_br(total_juros)
         self.inp_total_juros.setText(total_juros_fmt)
 
-        # 🔹 Exibe os labels somente depois da simulação
         self.lbl_prestacao.show()
         self.lbl_resumo.show()
 
@@ -193,7 +188,6 @@ class EmprestimoForm(QWidget):
             f"é {total_pago_fmt}, sendo {total_juros_fmt} de juros."
         )
 
-        # guarda para salvar depois
         self._ultimo_calc = {
             "capital": capital,
             "meses": n,
@@ -203,37 +197,37 @@ class EmprestimoForm(QWidget):
             "total_juros": total_juros
         }
 
-
     # ==============================
     def save_emprestimo(self):
-        
-
         if not hasattr(self, "_ultimo_calc"):
             QMessageBox.warning(self, "Erro", "Calcule a prestação antes de salvar.")
             return
 
         dados = self._ultimo_calc
         emprestimo_id = str(uuid.uuid4())
+        id_usuario = self.id_usuario  # ✅ já vem do construtor
 
         novo_emprestimo = (
             emprestimo_id,
             self.id_cliente,
             str(dados["capital"]),
-            "01/09/2025",   # depois você troca para a data atual
+            "01/09/2025",   # depois troque para a data atual
             str(dados["meses"]),
             f"Taxa {dados['taxa']*100:.2f}%",
             str(dados["total_juros"]),
-            str(dados["prestacao"])
+            str(dados["prestacao"]),
+            id_usuario
         )
 
-        
+        # 🔹 Salva localmente
+        emprestimos.append(novo_emprestimo)
+        salvar_emprestimos()
 
-        from emprestimos import emprestimos, salvar_emprestimos
-        emprestimos.append(novo_emprestimo)        
+        # 🔹 Envia empréstimo para o Supabase
+        from emprestimos import sincronizar_emprestimos_upload
+        sincronizar_emprestimos_upload()
 
-        salvar_emprestimos()       
-
-        # gera parcelas
+        # 🔹 Gerar parcelas simuladas (mas só salvar localmente por enquanto)
         novas_parcelas = []
         for i in range(1, dados["meses"] + 1):
             parcela_id = str(uuid.uuid4())
@@ -243,21 +237,22 @@ class EmprestimoForm(QWidget):
                 emprestimo_id,
                 str(i),
                 valor_fmt,
-                f"01/{i:02d}/2025",
+                f"01/{i:02d}/2025",  # depois podemos usar datas reais
                 "",
                 "",
                 valor_fmt,
                 "",
                 "",
                 "Não",
-                ""
+                "",
+                id_usuario
             )
             novas_parcelas.append(nova_parcela)
 
         from parcelas import salvar_parcelas
         salvar_parcelas(novas_parcelas)
-        
 
+        # 🔹 Passa o empréstimo + parcelas simuladas para a próxima tela
         self.parent_callback({
             "id": emprestimo_id,
             "capital": dados["capital"],
@@ -268,3 +263,5 @@ class EmprestimoForm(QWidget):
             "parcelas": novas_parcelas
         })
         self.close()
+
+

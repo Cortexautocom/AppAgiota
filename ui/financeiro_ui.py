@@ -9,7 +9,6 @@ from PySide6.QtCore import Qt
 from emprestimos import carregar_emprestimos
 from parcelas import carregar_parcelas_por_emprestimo
 
-
 class FinanceiroWindow(QWidget):
     """
     Tela financeira de um cliente.
@@ -205,9 +204,11 @@ class FinanceiroWindow(QWidget):
         from ui.parcelas_ui import ParcelasWindow
         self.parcelas_window = ParcelasWindow(
             {"id": emprestimo_id, "parcelas": parcelas},
+            id_usuario=self.parent().id_usuario,  # ✅ passa o usuário logado
             parent=self,
             on_save_callback=self.show_emprestimos
         )
+
         self.parcelas_window.show()
 
 
@@ -224,8 +225,6 @@ class FinanceiroWindow(QWidget):
         from ui.parcelas_ui import ParcelasWindow
 
         def callback(data):
-            
-
             # 🔹 Recarregar do banco local para garantir que o novo empréstimo esteja disponível
             from emprestimos import carregar_emprestimos
             self.emprestimos = carregar_emprestimos()
@@ -234,19 +233,28 @@ class FinanceiroWindow(QWidget):
             self.show_emprestimos()
 
             # 🔹 E só depois abrir a tela de parcelas
-            self.parcelas_window = ParcelasWindow({
-                "id": data["id"],
-                "capital": data["capital"],
-                "juros": data["juros"],
-                "parcelas": data["parcelas"]
-            })
+            self.parcelas_window = ParcelasWindow(
+                {
+                    "id": data["id"],
+                    "capital": data["capital"],
+                    "juros": data["juros"],
+                    "parcelas": data["parcelas"]
+                },
+                id_usuario=self.parent().id_usuario,  # ✅ passa o usuário logado
+                parent=self
+            )
+
             self.parcelas_window.show()
 
-
-
-        self.form_emprestimo = EmprestimoForm(callback, id_cliente=self.client_data[0], parent=self)
-
+        # ✅ Passa o id_usuario do ModernWindow
+        self.form_emprestimo = EmprestimoForm(
+            callback,
+            id_cliente=self.client_data[0],
+            id_usuario=self.parent().id_usuario,
+            parent=self
+        )
         self.form_emprestimo.show()
+
 
     # ==============================
     def show_garantias(self):

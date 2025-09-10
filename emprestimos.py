@@ -8,15 +8,17 @@ emprestimos = []
 
 
 # 🔹 Carregar empréstimos do banco local
-def carregar_emprestimos():
-    
+def carregar_emprestimos(id_usuario=None):
     conn = sqlite3.connect(get_local_db_path())
     cur = conn.cursor()
-    cur.execute("SELECT * FROM emprestimos")
+
+    if id_usuario:
+        cur.execute("SELECT * FROM emprestimos WHERE id_usuario = ?", (id_usuario,))
+    else:
+        cur.execute("SELECT * FROM emprestimos")
+
     dados = cur.fetchall()
     conn.close()
-
-    
 
     global emprestimos
     emprestimos = dados
@@ -38,8 +40,8 @@ def salvar_emprestimos():
 
         cursor.execute("""
             INSERT OR REPLACE INTO emprestimos (
-                id, id_cliente, valor, data_inicio, parcelas, observacao, juros, prestacao
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                id, id_cliente, valor, data_inicio, parcelas, observacao, juros, prestacao, id_usuario
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, emprestimo)
 
     conn.commit()
@@ -53,7 +55,7 @@ def salvar_emprestimos():
 
 
 # 🔹 Criar e salvar um novo empréstimo
-def adicionar_emprestimo(id_cliente, valor, data_inicio, parcelas, observacao="", juros="0", prestacao="0"):
+def adicionar_emprestimo(id_cliente, valor, data_inicio, parcelas, observacao="", juros="0", prestacao="0", id_usuario=""):
     """
     Cria um novo empréstimo com UUID e salva no banco.
     Retorna o registro criado como tupla.
@@ -69,7 +71,8 @@ def adicionar_emprestimo(id_cliente, valor, data_inicio, parcelas, observacao=""
         parcelas,
         observacao,
         juros,
-        prestacao
+        prestacao,
+        id_usuario
     )
 
     emprestimos.append(novo_emprestimo)
@@ -78,10 +81,11 @@ def adicionar_emprestimo(id_cliente, valor, data_inicio, parcelas, observacao=""
     return novo_emprestimo
 
 
+
 # 🔹 Baixar da nuvem
-def sincronizar_emprestimos_download():
+def sincronizar_emprestimos_download(id_usuario):
     global emprestimos
-    emprestimos = baixar_emprestimos()
+    emprestimos = baixar_emprestimos(id_usuario)
 
 
 # 🔹 Enviar para a nuvem

@@ -699,14 +699,13 @@ class ModernWindow(QMainWindow):
 
     # ======== Banco Local ========
     def load_local_db(self):
-        
         try:
             self.clients = carregar_clientes(self.id_usuario)
-            self.emprestimos = carregar_emprestimos()
-            self.parcelas = carregar_parcelas()   
-            
+            self.emprestimos = carregar_emprestimos(self.id_usuario)  # ✅ agora filtra por usuário
+            self.parcelas = carregar_parcelas(self.id_usuario)        # ✅ idem
         except Exception as e:
             print(f"⚠ Erro ao carregar banco local: {e}")
+
 
 
     def save_local_db(self):
@@ -892,9 +891,9 @@ if __name__ == "__main__":
         from emprestimos import sincronizar_emprestimos_download
         from parcelas import sincronizar_parcelas_download
 
-        sincronizar_clientes_download(usuario["id"])  # agora filtra por id_usuario
-        sincronizar_emprestimos_download()
-        sincronizar_parcelas_download()
+        sincronizar_clientes_download(usuario["id"])
+        sincronizar_emprestimos_download(usuario["id"])
+        sincronizar_parcelas_download(usuario["id"])
 
         # 🔹 Agora abre a janela principal
         main_window = ModernWindow(usuario["id"])  # passa id_usuario
