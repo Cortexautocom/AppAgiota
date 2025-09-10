@@ -206,7 +206,12 @@ class FinanceiroWindow(QWidget):
 
         from ui.parcelas_ui import ParcelasWindow
         self.parcelas_window = ParcelasWindow(
-            {"id": emprestimo_id, "parcelas": parcelas},
+            {
+                "id": emprestimo_id,
+                "parcelas": parcelas,
+                "data_inicio": self.tabela_emprestimos.item(row, 1).text(),  # pega da tabela
+                "cliente": self.client_data[1]  # nome do cliente
+            },
             id_usuario=self.parent().id_usuario,  # ✅ passa o usuário logado
             parent=self,
             on_save_callback=self.show_emprestimos
@@ -241,9 +246,11 @@ class FinanceiroWindow(QWidget):
                     "id": data["id"],
                     "capital": data["capital"],
                     "juros": data["juros"],
-                    "parcelas": data["parcelas"]
+                    "parcelas": data["parcelas"],
+                    "data_inicio": data.get("data_inicio", ""),
+                    "cliente": self.client_data[1]  # nome do cliente
                 },
-                id_usuario=self.parent().id_usuario,  # ✅ passa o usuário logado
+                id_usuario=self.parent().id_usuario,
                 parent=self
             )
 

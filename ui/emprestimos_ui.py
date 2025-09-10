@@ -287,6 +287,8 @@ class EmprestimoForm(QWidget):
             "taxa": dados["taxa"],
             "juros": dados["total_juros"],
             "prestacao": dados["prestacao"],
-            "parcelas": novas_parcelas
+            "parcelas": novas_parcelas,
+            "data_inicio": self.inp_data.date().toString("dd/MM/yyyy")
         })
+
         self.close()

@@ -18,13 +18,13 @@ class ParcelasWindow(QWidget):
         self.id_usuario = id_usuario   # ✅ agora guardamos o usuário logado
         self.on_save_callback = on_save_callback
 
-        self.setWindowTitle(f"Parcelas - Empréstimo {emprestimo['id']}")
+        self.setWindowTitle(f"Parcelas - Empréstimo de {emprestimo.get('data_inicio', '')} - {emprestimo.get('cliente', '')}")
         self.setFixedSize(1050, 550)
         self.setStyleSheet("background-color: #1c2331; color: white;")
 
         layout = QVBoxLayout(self)
 
-        lbl = QLabel(f"Parcelas do Empréstimo {emprestimo['id']}")
+        lbl = QLabel(f"Parcelas do Empréstimo de {emprestimo.get('data_inicio', '')} - {emprestimo.get('cliente', '')}")
         lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #9fb0c7;")
         layout.addWidget(lbl)
 
