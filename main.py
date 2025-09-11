@@ -308,6 +308,8 @@ class ModernWindow(QMainWindow):
 
             # Salva no banco local
             self.save_local_db()
+            sincronizar_clientes_upload()
+
 
             # Atualiza a tabela da interface se existir
             if hasattr(self, "table_results"):
@@ -796,7 +798,7 @@ class ModernWindow(QMainWindow):
         # 🔹 Sincroniza dados de cada módulo
         try:
             sincronizar_clientes_download(self.id_usuario)
-            sincronizar_emprestimos_download(self.id_usuario)   # ✅ corrigido
+            sincronizar_emprestimos_download(self.id_usuario)
             sincronizar_parcelas_download(self.id_usuario)
             
             self.load_local_db()
