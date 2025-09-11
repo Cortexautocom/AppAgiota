@@ -29,10 +29,10 @@ class ParcelasWindow(QWidget):
         layout.addWidget(lbl)
 
         # 🔹 Criação da tabela
-        self.tabela = QTableWidget(0, 9)
+        self.tabela = QTableWidget(0, 10)
         self.tabela.setHorizontalHeaderLabels([
             "Nº", "Vencimento", "Valor", "Juros", "Desconto",
-            "Parcela Atualizada", "Valor Pago", "Residual", "Data do Pag."
+            "Pg. Principal", "Pg. Juros", "Valor Pago", "Saldo", "Data do Pag."
         ])
 
         # Aparência da tabela
@@ -75,9 +75,9 @@ class ParcelasWindow(QWidget):
         for linha, parcela in enumerate(parcelas_do_emprestimo):
             (
                 _id, _id_emp, num, valor, venc,
-                juros, desconto, parcela_atual, valor_pago,
-                residual, pago, data_pag, _id_usuario
-            ) = parcela   # ✅ desempacota também id_usuario
+                juros, desconto, pg_principal, pg_juros,
+                valor_pago, residual, data_pag, _id_usuario
+            ) = parcela
 
             self.tabela.insertRow(linha)
 
@@ -110,29 +110,34 @@ class ParcelasWindow(QWidget):
             item_desc.setForeground(QColor("#ffaeae"))
             self.tabela.setItem(linha, 4, item_desc)
 
-            # Parcela Atualizada (não editável, calculada)
-            item_atual = QTableWidgetItem(parcela_atual or f"R$ {valor}")
-            item_atual.setTextAlignment(Qt.AlignCenter)
-            item_atual.setFlags(item_atual.flags() & ~Qt.ItemIsEditable)
-            self.tabela.setItem(linha, 5, item_atual)
+            # Pg. Principal (editável)
+            item_pg_principal = QTableWidgetItem(pg_principal if pg_principal else "")
+            item_pg_principal.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(linha, 5, item_pg_principal)
+
+            # Pg. Juros (editável)
+            item_pg_juros = QTableWidgetItem(pg_juros or "")
+            item_pg_juros.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(linha, 6, item_pg_juros)
 
             # Valor Pago (editável)
             item_pago = QTableWidgetItem(valor_pago or "")
             item_pago.setTextAlignment(Qt.AlignCenter)
             item_pago.setForeground(QColor("#78ddff"))
-            self.tabela.setItem(linha, 6, item_pago)
+            self.tabela.setItem(linha, 7, item_pago)
 
             # Residual (não editável, calculado)
             item_residual = QTableWidgetItem(residual or "")
             item_residual.setTextAlignment(Qt.AlignCenter)
             item_residual.setForeground(QColor("#ffaeae"))
             item_residual.setFlags(item_residual.flags() & ~Qt.ItemIsEditable)
-            self.tabela.setItem(linha, 7, item_residual)
+            self.tabela.setItem(linha, 8, item_residual)
 
             # Data do Pag. (editável)
             item_data = QTableWidgetItem(data_pag or "")
             item_data.setTextAlignment(Qt.AlignCenter)
-            self.tabela.setItem(linha, 8, item_data)
+            self.tabela.setItem(linha, 9, item_data)
+
 
         # Espaço visual entre tabela e totalizadores
         spacer = QFrame()
@@ -223,30 +228,40 @@ class ParcelasWindow(QWidget):
                     valor = 0.0
                     item.setText("")
 
-        if item.column() in (2, 3, 4):
+        # 🔹 Valor Pago = Pg. Principal + Pg. Juros
+        if item.column() in (5, 6):  # se mudou Pg. Principal ou Pg. Juros
             try:
-                valor = self._get_valor(item.row(), 2)
-                juros = self._get_valor(item.row(), 3)
-                desconto = self._get_valor(item.row(), 4)
-                atualizado = valor + juros - desconto
-                celula = self.tabela.item(item.row(), 5)
-                if celula:
-                    celula.setText(self._fmt(atualizado))
+                pg_principal = self._get_valor(item.row(), 5)
+                pg_juros = self._get_valor(item.row(), 6)
+                total_pago = pg_principal + pg_juros
+
+                celula = self.tabela.item(item.row(), 7)  # col 7 = Valor Pago
+                if total_pago > 0:
+                    celula.setText(self._fmt(total_pago))
+                    celula.setTextAlignment(Qt.AlignCenter)
+                else:
+                    celula.setText("")  
             except:
                 pass
 
-        if item.column() in (5, 6):
-            try:
-                atualizado = self._get_valor(item.row(), 5)
-                pago = self._get_valor(item.row(), 6)
-                residual = atualizado - pago
-                celula = self.tabela.item(item.row(), 7)
-                if celula:
-                    celula.setText(self._fmt(residual))
-            except:
-                pass
+        # 🔹 Saldo = Valor + Juros - Desconto + Pg. Principal + Pg. Juros
+        try:
+            valor = self._get_valor(item.row(), 2)
+            juros = self._get_valor(item.row(), 3)
+            desconto = self._get_valor(item.row(), 4)
+            pg_principal = self._get_valor(item.row(), 5)
+            pg_juros = self._get_valor(item.row(), 6)
+
+            saldo = valor + juros - desconto - pg_principal - pg_juros
+            celula_saldo = self.tabela.item(item.row(), 8)  # col 8 = Saldo
+            if celula_saldo:
+                celula_saldo.setText(self._fmt(saldo))
+                celula_saldo.setTextAlignment(Qt.AlignCenter)
+        except:
+            pass
 
         self.atualizar_totalizadores()
+
 
     def _get_valor(self, row, col):
         """Lê valor float de uma célula formatada."""
@@ -264,18 +279,20 @@ class ParcelasWindow(QWidget):
         return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
     def atualizar_totalizadores(self):
-        """Recalcula os totais das colunas monetárias."""
-        row_total = self.tabela.rowCount() - 1
-        for col in [2, 3, 4, 5, 6, 7]:
-            total = 0.0
-            for r in range(row_total):
-                try:
-                    total += self._get_valor(r, col)
-                except:
-                    pass
-            celula = self.tabela.item(row_total, col)
-            if celula:
-                celula.setText(self._fmt(total))
+            """Recalcula os totais das colunas monetárias."""
+            row_total = self.tabela.rowCount() - 1
+            # Colunas monetárias agora: Valor (2), Juros (3), Desconto (4),
+            # Pg. Principal (5), Pg. Juros (6), Valor Pago (7)
+            for col in [2, 3, 4, 5, 6, 7]:
+                total = 0.0
+                for r in range(row_total):
+                    try:
+                        total += self._get_valor(r, col)
+                    except:
+                        pass
+                celula = self.tabela.item(row_total, col)
+                if celula:
+                    celula.setText(self._fmt(total))
 
     def salvar_modificacoes(self):
         """Salva alterações no banco local e envia ao Supabase."""
@@ -288,10 +305,11 @@ class ParcelasWindow(QWidget):
             valor = self.tabela.item(linha, 2).text().replace("R$", "").strip()
             juros = self.tabela.item(linha, 3).text()
             desconto = self.tabela.item(linha, 4).text()
-            parcela_atual = self.tabela.item(linha, 5).text()
-            valor_pago = self.tabela.item(linha, 6).text()
-            residual = self.tabela.item(linha, 7).text()
-            data_pag = self.tabela.item(linha, 8).text()
+            pg_principal = self.tabela.item(linha, 5).text()
+            pg_juros = self.tabela.item(linha, 6).text()
+            valor_pago = self.tabela.item(linha, 7).text()
+            residual = self.tabela.item(linha, 8).text()
+            data_pag = self.tabela.item(linha, 9).text()
 
             if linha < len(parcelas):
                 parcela_id = parcelas[linha][0]
@@ -306,12 +324,12 @@ class ParcelasWindow(QWidget):
                 venc,
                 juros,
                 desconto,
-                parcela_atual,
+                pg_principal,
+                pg_juros,
                 valor_pago,
                 residual,
-                "Não",
                 data_pag,
-                self.id_usuario   # ✅ adiciona id_usuario
+                self.id_usuario
             ))
 
         parcelas[:] = novas_parcelas
@@ -322,4 +340,5 @@ class ParcelasWindow(QWidget):
             self.on_save_callback()
 
         self.close()
+
 

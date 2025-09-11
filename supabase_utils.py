@@ -35,8 +35,8 @@ TABELAS = {
         "remota": "parcelas",
         "campos": [
             "id", "id_emprestimo", "numero", "valor", "vencimento",
-            "juros", "desconto", "parcela_atualizada", "valor_pago",
-            "residual", "pago", "data_pagamento", "id_usuario"
+            "juros", "desconto", "pg_principal", "pg_juros",
+            "valor_pago", "residual", "data_pagamento", "id_usuario"
         ],
         "chave": "id"
     },    

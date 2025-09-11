@@ -56,8 +56,8 @@ def salvar_parcelas(lista=None):
         cursor.execute("""
             INSERT OR REPLACE INTO parcelas (
                 id, id_emprestimo, numero, valor, vencimento,
-                juros, desconto, parcela_atualizada, valor_pago,
-                residual, pago, data_pagamento, id_usuario
+                juros, desconto, pg_principal, pg_juros,
+                valor_pago, residual, data_pagamento, id_usuario
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, parcela)
 

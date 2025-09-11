@@ -54,14 +54,15 @@ def criar_tabelas_local():
             vencimento TEXT,
             juros TEXT,
             desconto TEXT,
-            parcela_atualizada TEXT,
+            pg_principal TEXT,
+            pg_juros TEXT,
             valor_pago TEXT,
             residual TEXT,
-            pago TEXT,
             data_pagamento TEXT,
             id_usuario TEXT
         )
     """)
+
 
     conn.commit()
     conn.close()
