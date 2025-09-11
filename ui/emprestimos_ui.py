@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, QDate
 import uuid
 
 import emprestimos
-from parcelas import salvar_parcelas
+from parcelas import sincronizar_parcelas_upload, salvar_parcelas  
 
 
 class EmprestimoForm(QWidget):
@@ -15,8 +15,20 @@ class EmprestimoForm(QWidget):
         super().__init__(parent)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
         self.setWindowTitle("Novo Empréstimo")
-        self.setFixedSize(420, 400)
-        self.setStyleSheet("background-color: #1c2331; color: white;")
+        self.setFixedSize(420, 400)        
+        self.setStyleSheet("""
+            background-color: #1c2331; color: white;
+            QLineEdit {
+                background-color:#2c3446; 
+                color:white; 
+                padding:6px; 
+                border-radius:6px;
+            }
+            QLineEdit:focus, QLineEdit:disabled, QLineEdit:!focus {
+                background-color:#2c3446;
+                color:white;
+            }
+        """)
 
         self.parent_callback = parent_callback
         self.id_cliente = id_cliente
@@ -54,7 +66,26 @@ class EmprestimoForm(QWidget):
         self.inp_data.setDisplayFormat("dd/MM/yyyy")
         self.inp_data.setDate(QDate.currentDate())  # já inicia com hoje
         self.inp_data.setCalendarPopup(True)
-        self.inp_data.setStyleSheet("background-color:#2c3446; color:white; padding:6px; border-radius:6px;")
+        self.inp_data.setStyleSheet("""
+            QDateEdit {
+                background-color:#2c3446;
+                color:white;
+                padding:6px;
+                border-radius:6px;
+                selection-background-color:#3498db;   /* cor do highlight */
+                selection-color:white;                /* cor do texto selecionado */
+            }
+            QAbstractSpinBox {
+                background-color:#2c3446;
+                color:white;
+                border-radius:6px;
+                padding:6px;
+                selection-background-color:#3498db;
+                selection-color:white;
+            }
+        """)
+
+
         form.addRow(QLabel("Data do empréstimo:"), self.inp_data)    
 
         # ===== Valor financiado =====
@@ -239,13 +270,9 @@ class EmprestimoForm(QWidget):
             str(dados["prestacao"]),
             id_usuario
         )
-
-        # 🔹 Debug
-        print("🆕 Novo empréstimo criado (antes de salvar):", novo_emprestimo)
-
+        
         # 🔹 Salva localmente
-        emprestimos.emprestimos.append(novo_emprestimo)
-        print("📋 Lista emprestimos em memória agora tem:", len(emprestimos.emprestimos), "itens")
+        emprestimos.emprestimos.append(novo_emprestimo)        
         emprestimos.salvar_emprestimos()
 
         # 🔹 Envia empréstimo para o Supabase
@@ -272,12 +299,11 @@ class EmprestimoForm(QWidget):
                 "",
                 id_usuario
             )
-            novas_parcelas.append(nova_parcela)
+            novas_parcelas.append(nova_parcela)        
 
-        print(f"🧾 {len(novas_parcelas)} parcelas geradas para o empréstimo {emprestimo_id}")
-
-        from parcelas import salvar_parcelas
+        
         salvar_parcelas(novas_parcelas)
+        sincronizar_parcelas_upload()
 
         # 🔹 Passa o empréstimo + parcelas simuladas para a próxima tela
         self.parent_callback({

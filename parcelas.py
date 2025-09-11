@@ -62,9 +62,7 @@ def salvar_parcelas(lista=None):
         """, parcela)
 
     conn.commit()
-    conn.close()
-    print(f"✅ {len(parcelas)} parcelas salvas no banco local.")
-
+    conn.close()    
 
 # 🔹 Criar ou atualizar uma parcela
 def adicionar_ou_atualizar_parcela(
@@ -92,7 +90,7 @@ def adicionar_ou_atualizar_parcela(
             residual, pago, data_pagamento
         )
         parcelas = [nova_parcela if p[0] == parcela_id else p for p in parcelas]
-        print(f"🔄 Parcela atualizada: {nova_parcela}")
+        
     else:
         parcela_id = str(uuid.uuid4())
         nova_parcela = (
@@ -100,8 +98,7 @@ def adicionar_ou_atualizar_parcela(
             juros, desconto, parcela_atualizada, valor_pago,
             residual, pago, data_pagamento
         )
-        parcelas.append(nova_parcela)
-        print(f"✅ Nova parcela criada: {nova_parcela}")
+        parcelas.append(nova_parcela)       
 
     salvar_parcelas()
     return nova_parcela
@@ -131,13 +128,11 @@ def sincronizar_parcelas_upload():
         if p[1] in emprestimos_existentes:  # p[1] = id_emprestimo
             parcelas_validas.append(p)
         else:
-            print(f"⚠ Ignorando parcela {p[0]}: empréstimo {p[1]} não encontrado.")
+            pass
 
-    if not parcelas_validas:
-        print("ℹ Nenhuma parcela válida para enviar.")
+    if not parcelas_validas:        
         return
 
     enviar_parcelas(parcelas_validas)
-    print(f"⬆️ {len(parcelas_validas)} parcelas enviadas ao Supabase.")
 
 

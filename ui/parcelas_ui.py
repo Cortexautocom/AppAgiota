@@ -316,9 +316,7 @@ class ParcelasWindow(QWidget):
 
         parcelas[:] = novas_parcelas
         salvar_parcelas(parcelas)
-        sincronizar_parcelas_upload()    
-
-        print("✅ Parcelas salvas no banco local e na nuvem!")
+        sincronizar_parcelas_upload()       
 
         if self.on_save_callback:
             self.on_save_callback()

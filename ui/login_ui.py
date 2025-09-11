@@ -88,8 +88,7 @@ class LoginWindow(QWidget):
             return
 
         usuario = validar_login(email, senha)
-        if usuario:
-            QMessageBox.information(self, "Sucesso", f"Bem-vindo, {usuario['email']}!")
+        if usuario:            
             self.on_login_success(usuario)  # passa usuário autenticado
             self.close()
         else:

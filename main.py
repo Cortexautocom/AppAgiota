@@ -204,23 +204,6 @@ class ModernWindow(QMainWindow):
 
     # ======== Ações de janela ========
     def handle_close(self):
-        """Salva no SQLite e depois envia tudo ao Supabase antes de fechar."""
-        try:
-            # 🔹 Primeiro salva no banco local
-            self.save_local_db_background()
-
-            # 🔹 Depois envia tudo para o Supabase
-            from clientes import sincronizar_clientes_upload
-            from emprestimos import sincronizar_emprestimos_upload
-            from parcelas import sincronizar_parcelas_upload            
-
-            sincronizar_clientes_upload()
-            sincronizar_emprestimos_upload()
-            sincronizar_parcelas_upload()
-
-        except Exception as e:
-            print(f"⚠ Erro ao salvar antes de fechar: {e}")
-
         self.close()
 
 
@@ -661,8 +644,7 @@ class ModernWindow(QMainWindow):
     def open_finance_form(self, client_data):
         """Abre o formulário de empréstimo para o cliente selecionado."""
         def callback(data):
-            print("💰 Empréstimo salvo para cliente:", client_data[1])
-            print("Dados do empréstimo:", data)
+            pass
 
         self.form_emprestimo = EmprestimoForm(callback)
         self.form_emprestimo.show()
@@ -674,15 +656,12 @@ class ModernWindow(QMainWindow):
         row = item.row()
         col = item.column()
         novo_valor = item.text().strip()
-
-        # Colunas visuais -> campos reais (índices na tupla)
-        # Tabela mostra: 0 Nome, 1 CPF, 2 Endereço, 3 Cidade, 4 Telefone, 5 Indicação
-        # Tupla real: (0:id_cliente, 1:nome, 2:cpf, 3:telefone, 4:endereco, 5:cidade, 6:indicacao)
+        
         mapeamento = {
             2: 4,  # Endereço
             3: 5,  # Cidade
             4: 3,  # Telefone
-            # 0 Nome, 1 CPF, 5 Indicação estão não editáveis (bloqueados)
+            
         }
 
         if col not in mapeamento:
@@ -703,8 +682,8 @@ class ModernWindow(QMainWindow):
     def load_local_db(self):
         try:
             self.clients = carregar_clientes(self.id_usuario)
-            self.emprestimos = carregar_emprestimos(self.id_usuario)  # ✅ agora filtra por usuário
-            self.parcelas = carregar_parcelas(self.id_usuario)        # ✅ idem
+            self.emprestimos = carregar_emprestimos(self.id_usuario)  
+            self.parcelas = carregar_parcelas(self.id_usuario)        
         except Exception as e:
             print(f"⚠ Erro ao carregar banco local: {e}")
 
@@ -866,10 +845,9 @@ class SaveWorker(QRunnable):
         self.descricao = descricao
 
     def run(self):
-        try:
-            print(f"💾 {self.descricao} (em segundo plano)")
+        try:            
             self.save_func()
-            print(f"✅ {self.descricao} concluído.")
+            
         except Exception as e:
             print(f"⚠ Erro ao executar '{self.descricao}': {e}")
 

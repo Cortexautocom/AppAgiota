@@ -50,8 +50,7 @@ LOCAL_DB = "dados.db"
 def baixar_tabela(nome):
     """Baixa dados de uma tabela específica do Supabase."""
     try:
-        config = TABELAS[nome]
-        print(f"☁️ Baixando {nome} do Supabase...")
+        config = TABELAS[nome]        
         response = supabase.table(config["remota"]).select("*").execute()
         data = response.data if hasattr(response, "data") else []
 
@@ -78,8 +77,7 @@ def baixar_tabela(nome):
             """, valores)
 
         conn.commit()
-        conn.close()
-        print(f"✅ {len(data)} registros de {nome} salvos localmente.")
+        conn.close()        
         return data
 
     except Exception as e:
@@ -91,8 +89,7 @@ def enviar_tabela(nome, registros):
     """Envia dados de uma tabela específica para o Supabase."""
     try:
         config = TABELAS[nome]
-        if not registros:
-            print(f"⚠ Nenhum dado de {nome} para enviar.")
+        if not registros:            
             return False
 
         registros_validos = []
@@ -115,9 +112,7 @@ def enviar_tabela(nome, registros):
             registros_validos,
             on_conflict=[config["chave"]]
         ).execute()
-
-        enviados = len(response.data) if response.data else len(registros_validos)
-        print(f"✅ {enviados} registros de {nome} enviados ao Supabase.")
+        
         return True
 
     except Exception as e:
@@ -129,8 +124,7 @@ def enviar_tabela(nome, registros):
 # ==========================
 def baixar_clientes(id_usuario):
     """Baixa somente os clientes do usuário informado e salva no SQLite local."""
-    try:
-        print(f"☁️ Baixando clientes do Supabase para usuário {id_usuario}...")
+    try:        
         response = supabase.table("clientes").select("*").eq("id_usuario", id_usuario).execute()
         data = response.data if hasattr(response, "data") else []
 
@@ -154,8 +148,7 @@ def baixar_clientes(id_usuario):
 
         conn.commit()
         conn.close()
-
-        print(f"✅ {len(data)} clientes salvos localmente para usuário {id_usuario}.")
+        
         return data
 
     except Exception as e:
@@ -217,14 +210,6 @@ def baixar_parcelas(id_usuario):
     
 def enviar_parcelas(registros):
     return enviar_tabela("parcelas", registros)
-
-def baixar_movimentacoes():
-    return baixar_tabela("movimentacoes")
-
-def enviar_movimentacoes(registros):
-    return enviar_tabela("movimentacoes", registros)
-
-
 
 # ==========================
 # 🔹 USUÁRIOS (LOGIN)

@@ -29,9 +29,7 @@ def carregar_emprestimos(id_usuario=None):
 def salvar_emprestimos(lista=None):
     global emprestimos
     if lista is not None:
-        emprestimos = lista
-
-    print(f"💾 salvar_emprestimos() chamado com {len(emprestimos)} itens")
+        emprestimos = lista    
 
     conn = sqlite3.connect(get_local_db_path())
     cursor = conn.cursor()
@@ -39,10 +37,7 @@ def salvar_emprestimos(lista=None):
     # Garante que cada empréstimo tenha 9 colunas
     for idx, emp in enumerate(emprestimos, start=1):
         if len(emp) != 9:
-            emp = emp + tuple("" for _ in range(9 - len(emp)))
-            print(f"⚠️ Empréstimo {idx} tinha tamanho errado, ajustado para 9 colunas")
-
-        print(f"➡️ Gravando empréstimo {idx}: {emp}")
+            emp = emp + tuple("" for _ in range(9 - len(emp)))                   
 
         cursor.execute("""
             INSERT OR REPLACE INTO emprestimos (
@@ -54,13 +49,8 @@ def salvar_emprestimos(lista=None):
 
     # Contar registros atuais
     cursor.execute("SELECT COUNT(*) FROM emprestimos")
-    total = cursor.fetchone()[0]
-    print(f"📊 Total de empréstimos no banco agora: {total}")
-
+    
     conn.close()
-    print("✅ salvar_emprestimos() concluído")
-
-
 
 # 🔹 Criar e salvar um novo empréstimo
 def adicionar_emprestimo(id_cliente, valor, data_inicio, parcelas, observacao="", juros="0", prestacao="0", id_usuario=""):
