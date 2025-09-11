@@ -279,7 +279,7 @@ class EmprestimoForm(QWidget):
         from emprestimos import sincronizar_emprestimos_upload
         sincronizar_emprestimos_upload()
 
-        # 🔹 Gerar parcelas simuladas (mas só salvar localmente por enquanto)
+        # 🔹 Gerar parcelas simuladas (pg_principal e pg_juros ficam sempre vazios)
         novas_parcelas = []
         for i in range(1, dados["meses"] + 1):
             parcela_id = str(uuid.uuid4())
@@ -287,21 +287,20 @@ class EmprestimoForm(QWidget):
             nova_parcela = (
                 parcela_id,
                 emprestimo_id,
-                str(i),
-                valor_fmt,
-                f"01/{i:02d}/2025",  # depois podemos usar datas reais
-                "",
-                "",
-                valor_fmt,
-                "",
-                "",
-                "Não",
-                "",
+                str(i),                          # número da parcela
+                valor_fmt,                       # valor da parcela
+                f"01/{i:02d}/2025",              # vencimento (placeholder)
+                "",                              # juros vazio
+                "",                              # desconto vazio
+                "",                              # pg_principal vazio
+                "",                              # pg_juros vazio
+                "",                              # valor_pago vazio
+                "",                              # residual vazio
+                "",                              # data_pagamento vazio
                 id_usuario
             )
             novas_parcelas.append(nova_parcela)        
 
-        
         salvar_parcelas(novas_parcelas)
         sincronizar_parcelas_upload()
 
@@ -318,3 +317,4 @@ class EmprestimoForm(QWidget):
         })
 
         self.close()
+

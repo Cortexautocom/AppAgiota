@@ -62,7 +62,8 @@ def salvar_parcelas(lista=None):
         """, parcela)
 
     conn.commit()
-    conn.close()    
+    conn.close()
+    
 
 # 🔹 Criar ou atualizar uma parcela
 def adicionar_ou_atualizar_parcela(
