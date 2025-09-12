@@ -7,6 +7,9 @@ from PySide6.QtGui import QColor, QFont, QRegularExpressionValidator
 
 import uuid
 
+from datetime import datetime, timedelta
+import calendar
+
 from parcelas import carregar_parcelas_por_emprestimo
 
 class ParcelasWindow(QWidget):
@@ -420,50 +423,86 @@ class ParcelasWindow(QWidget):
             print(f"[DEBUG] Erro em calcular_pg: {e}")
 
     def adicionar_parcela(self):
-        """Adiciona uma nova parcela no final, com valor padrão do empréstimo e vencimento +30 dias da última"""
-        from datetime import datetime, timedelta
+        """Adiciona uma nova parcela no final, obedecendo o padrão de datas e valores originais"""
+        from datetime import datetime
+        import calendar
 
-        row_total = self.tabela.rowCount() - 1  # última linha é o totalizador
+        row_total = self.tabela.rowCount() - 1
         nova_linha = row_total  # insere antes do totalizador
-
         self.tabela.insertRow(nova_linha)
 
         # número da nova parcela = última parcela + 1
         numero = str(nova_linha + 1)
 
-        # valor padrão = prestação original do empréstimo
+        # 🔹 Depuração do valor de prestação
+        valor_prestacao_raw = self.emprestimo.get("prestacao", 0)
+        print(f"[DEBUG] prestacao bruto vindo do dicionário: {valor_prestacao_raw} (tipo {type(valor_prestacao_raw)})")
+
         try:
-            valor_prestacao = float(self.emprestimo.get("prestacao", 0))
-            if not valor_prestacao or valor_prestacao == 0:
+            valor_prestacao = float(valor_prestacao_raw)
+            print(f"[DEBUG] convertido direto para float: {valor_prestacao}")
+        except Exception as e1:
+            print(f"[DEBUG] falhou conversão direta: {e1}")
+            try:
+                valor_prestacao = float(str(valor_prestacao_raw).replace("R$", "").replace(".", "").replace(",", "."))
+                print(f"[DEBUG] convertido via limpeza de string: {valor_prestacao}")
+            except Exception as e2:
+                print(f"[DEBUG] falhou conversão com replace: {e2}")
+                valor_prestacao = 0
+
+        if valor_prestacao == 0:
+            print("[DEBUG] valor_prestacao veio 0, tentando calcular com capital+juros/meses")
+            try:
                 capital = float(self.emprestimo.get("capital", 0))
                 juros = float(self.emprestimo.get("juros", 0))
                 n = int(str(self.emprestimo.get("meses", 1)).strip())
                 valor_prestacao = (capital + juros) / n if n > 0 else 0
-        except Exception:
-            valor_prestacao = 0
-        valor_fmt = self._fmt(valor_prestacao)
+                print(f"[DEBUG] calculado: capital={capital}, juros={juros}, n={n}, prestacao={valor_prestacao}")
+            except Exception as e3:
+                print(f"[DEBUG] erro no cálculo alternativo: {e3}")
+                valor_prestacao = 0
 
-        # calcula vencimento = último vencimento + 30 dias
+        valor_fmt = self._fmt(valor_prestacao)
+        print(f"[DEBUG] valor final formatado da nova parcela: {valor_fmt}")
+
+        # ===== resto do método continua igual =====
+
+
+        # 🔹 Data = 1 mês após a última parcela
         data_venc_ultima = self.tabela.item(row_total - 1, 1).text() if row_total > 0 else ""
         try:
             dt = datetime.strptime(data_venc_ultima, "%d/%m/%Y")
-            novo_venc = (dt + timedelta(days=30)).strftime("%d/%m/%Y")
-        except Exception:
+            dia_ref = dt.day
+            mes = dt.month + 1
+            ano = dt.year
+            if mes > 12:
+                mes = 1
+                ano += 1
+            ultimo_dia = calendar.monthrange(ano, mes)[1]
+            if dia_ref <= ultimo_dia:
+                vencimento = datetime(ano, mes, dia_ref)
+            else:
+                # se não tiver esse dia no mês → vai para o dia 1 do próximo
+                mes += 1
+                if mes > 12:
+                    mes = 1
+                    ano += 1
+                vencimento = datetime(ano, mes, 1)
+            novo_venc = vencimento.strftime("%d/%m/%Y")
+        except Exception as e:
+            print(f"[DEBUG] Erro ao calcular vencimento da nova parcela: {e}")
             novo_venc = ""
-            print(f"[DEBUG] Não foi possível calcular novo vencimento a partir de '{data_venc_ultima}'")
 
-        # Nº
+        # agora cria as células normalmente
         item_num = QTableWidgetItem(numero)
         item_num.setTextAlignment(Qt.AlignCenter)
         item_num.setFont(QFont("", weight=QFont.Bold))
         self.tabela.setItem(nova_linha, 0, item_num)
 
-        # Vencimento
         item_venc = QTableWidgetItem(novo_venc)
         item_venc.setTextAlignment(Qt.AlignCenter)
         self.tabela.setItem(nova_linha, 1, item_venc)
 
-        # Valor
         item_valor = QTableWidgetItem(valor_fmt)
         item_valor.setTextAlignment(Qt.AlignCenter)
         self.tabela.setItem(nova_linha, 2, item_valor)

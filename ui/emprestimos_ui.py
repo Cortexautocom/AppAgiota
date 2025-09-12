@@ -280,23 +280,52 @@ class EmprestimoForm(QWidget):
         sincronizar_emprestimos_upload()
 
         # 🔹 Gerar parcelas simuladas (pg_principal e pg_juros ficam sempre vazios)
+        from datetime import datetime, timedelta
+        import calendar
+
+        data_inicio_str = self.inp_data.date().toString("dd/MM/yyyy")
+        data_inicio = datetime.strptime(data_inicio_str, "%d/%m/%Y")
+        dia_ref = data_inicio.day
+
         novas_parcelas = []
         for i in range(1, dados["meses"] + 1):
             parcela_id = str(uuid.uuid4())
             valor_fmt = f"R$ {dados['prestacao']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+            # 🔹 calcula vencimento = mês seguinte ao da data de início + (i-1)
+            ano = data_inicio.year
+            mes = data_inicio.month + i
+            while mes > 12:
+                mes -= 12
+                ano += 1
+
+            ultimo_dia = calendar.monthrange(ano, mes)[1]
+
+            if dia_ref <= ultimo_dia:
+                vencimento = datetime(ano, mes, dia_ref)
+            else:
+                # caso não exista esse dia (exemplo 31/02), vai para o dia 1 do próximo mês
+                mes += 1
+                if mes > 12:
+                    mes = 1
+                    ano += 1
+                vencimento = datetime(ano, mes, 1)
+
+            venc_str = vencimento.strftime("%d/%m/%Y")
+
             nova_parcela = (
                 parcela_id,
                 emprestimo_id,
-                str(i),                          # número da parcela
-                valor_fmt,                       # valor da parcela
-                f"01/{i:02d}/2025",              # vencimento (placeholder)
-                "",                              # juros vazio
-                "",                              # desconto vazio
-                "",                              # pg_principal vazio
-                "",                              # pg_juros vazio
-                "",                              # valor_pago vazio
-                "",                              # residual vazio
-                "",                              # data_pagamento vazio
+                str(i),             # número da parcela
+                valor_fmt,          # valor da parcela
+                venc_str,           # vencimento calculado
+                "",                 # juros vazio
+                "",                 # desconto vazio
+                "",                 # pg_principal vazio
+                "",                 # pg_juros vazio
+                "",                 # valor_pago vazio
+                "",                 # residual vazio
+                "",                 # data_pagamento vazio
                 id_usuario
             )
             novas_parcelas.append(nova_parcela)        
@@ -311,10 +340,9 @@ class EmprestimoForm(QWidget):
             "meses": dados["meses"],
             "taxa": dados["taxa"],
             "juros": dados["total_juros"],
-            "prestacao": dados["prestacao"],
+            "prestacao": float(dados.get("prestacao", 0)),
             "parcelas": novas_parcelas,
             "data_inicio": self.inp_data.date().toString("dd/MM/yyyy")
         })
 
         self.close()
-

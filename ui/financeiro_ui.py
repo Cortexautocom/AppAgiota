@@ -213,9 +213,10 @@ class FinanceiroWindow(QWidget):
         self.parcelas_window = ParcelasWindow(
             {
                 "id": emprestimo_id,
-                "capital": emp[2] if emp else "0",   # coluna 2 = valor
-                "meses": emp[4] if emp else "1",     # coluna 4 = parcelas
-                "juros": emp[6] if emp else "0",     # opcional
+                "capital": emp[2] if emp else "0",
+                "meses": emp[4] if emp else "1",
+                "juros": emp[6] if emp else "0",
+                "prestacao": emp[7] if emp else "0",
                 "parcelas": parcelas,
                 "data_inicio": self.tabela_emprestimos.item(row, 1).text(),
                 "cliente": self.client_data[1]
@@ -254,10 +255,12 @@ class FinanceiroWindow(QWidget):
                 {
                     "id": data["id"],
                     "capital": data["capital"],
+                    "meses": data["meses"],           # 🔹 incluir
                     "juros": data["juros"],
+                    "prestacao": data["prestacao"],   # 🔹 incluir
                     "parcelas": data["parcelas"],
                     "data_inicio": data.get("data_inicio", ""),
-                    "cliente": self.client_data[1]  # nome do cliente
+                    "cliente": self.client_data[1]
                 },
                 id_usuario=self.parent().id_usuario,
                 parent=self
