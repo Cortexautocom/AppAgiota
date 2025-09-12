@@ -30,6 +30,18 @@ class ParcelasWindow(QWidget):
         lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #9fb0c7;")
         layout.addWidget(lbl)
 
+        # 🔹 Linha extra com capital e juros iniciais
+        capital_txt = self._fmt(float(emprestimo.get("capital", 0)))
+        juros_txt = self._fmt(float(emprestimo.get("juros", 0)))
+        parcelas_txt = emprestimo.get("meses", "0")
+        lbl_info = QLabel(
+            f"Capital inicial: {capital_txt}    |    "
+            f"Juros iniciais: {juros_txt}    |    "
+            f"Número de parcelas: {parcelas_txt}"
+        )
+        lbl_info.setStyleSheet("font-size: 14px; color: #cccccc; margin-bottom: 8px;")
+        layout.addWidget(lbl_info)
+
         # 🔹 Criação da tabela
         self.tabela = QTableWidget(0, 12)
         self.tabela.setHorizontalHeaderLabels([
