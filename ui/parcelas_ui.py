@@ -111,6 +111,7 @@ class ParcelasWindow(QWidget):
             # Botão de cálculo
             btn_calc = QPushButton("⚙️")
             btn_calc.setStyleSheet("background-color:#3498db; color:white; border-radius:6px;")
+            print(f"[DEBUG] Criando botão de cálculo na linha {linha}")
             btn_calc.clicked.connect(self.handle_calc_click)
             self.tabela.setCellWidget(linha, 5, btn_calc)
 
@@ -179,11 +180,21 @@ class ParcelasWindow(QWidget):
     
     def handle_calc_click(self):
         sender = self.sender()
+        print(f"[DEBUG] Botão clicado: {sender}")
         if not sender:
+            print("[DEBUG] Nenhum sender encontrado")
             return
+
+        pos = sender.pos()
+        print(f"[DEBUG] sender.pos() = {pos}")
         row = self.tabela.indexAt(sender.pos()).row()
+        print(f"[DEBUG] indexAt(sender.pos()) retornou row={row}")
+
         if row >= 0:
+            print(f"[DEBUG] Chamando calcular_pg para linha {row}")
             self.calcular_pg(row)
+        else:
+            print("[DEBUG] Nenhuma linha encontrada para esse botão")
 
 
     def adicionar_totalizadores(self, fonte_negrito):
@@ -272,9 +283,11 @@ class ParcelasWindow(QWidget):
                 celula.setText(self._fmt(total))
 
     def salvar_modificacoes(self):
+        print("[DEBUG] salvar_modificacoes iniciado")
         from parcelas import salvar_parcelas, parcelas, sincronizar_parcelas_upload
         novas_parcelas = []
         for linha in range(self.tabela.rowCount() - 1):
+            print(f"[DEBUG] Salvando linha {linha}")
             numero = self.tabela.item(linha, 0).text()
             venc = self.tabela.item(linha, 1).text()
             valor = self.tabela.item(linha, 2).text().replace("R$", "").strip()
@@ -304,27 +317,35 @@ class ParcelasWindow(QWidget):
                 data_pag,
                 self.id_usuario
             ))
+        print("[DEBUG] Salvando no banco local e sincronizando")
         parcelas[:] = novas_parcelas
         salvar_parcelas(parcelas)
         sincronizar_parcelas_upload()
+        print("[DEBUG] Salvamento concluído")
         if self.on_save_callback:
             self.on_save_callback()
         self.close()
 
     def calcular_pg(self, row):
         """Calcula Pg. Principal e Pg. Juros da linha selecionada."""
+        print(f"[DEBUG] calcular_pg chamado para linha {row}")
         try:
             capital = float(self.emprestimo.get("capital", 0))
             n = int(self.emprestimo.get("meses", 1))
             valor_parcela = self._get_valor(row, 2)
 
+            print(f"[DEBUG] capital={capital}, meses={n}, valor_parcela={valor_parcela}")
+
             if capital <= 0 or n <= 0 or valor_parcela <= 0:
+                print("[DEBUG] Dados inválidos para cálculo, abortando")
                 return
 
             pg_principal = capital / n
             pg_juros = valor_parcela - pg_principal
+            print(f"[DEBUG] pg_principal={pg_principal}, pg_juros={pg_juros}")
 
             self.tabela.item(row, 6).setText(self._fmt(pg_principal))
             self.tabela.item(row, 7).setText(self._fmt(pg_juros))
-        except:
-            pass
+        except Exception as e:
+            print(f"[DEBUG] Erro em calcular_pg: {e}")
+

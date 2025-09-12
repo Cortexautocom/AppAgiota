@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
+from ui.parcelas_ui import ParcelasWindow
 
 # Importa função para carregar empréstimos reais
 from emprestimos import carregar_emprestimos
@@ -200,24 +201,29 @@ class FinanceiroWindow(QWidget):
         self._set_content(frame)
 
     def abrir_parcelas(self, row):
-        """Abre a janela de parcelas do empréstimo selecionado."""
-        emprestimo_id = self.tabela_emprestimos.item(row, 0).text()  # agora é o ID real
+        emprestimo_id = self.tabela_emprestimos.item(row, 0).text()
         parcelas = carregar_parcelas_por_emprestimo(emprestimo_id)
+        
+        todos = carregar_emprestimos()
+        emp = next((e for e in todos if e[0] == emprestimo_id), None)
 
-        from ui.parcelas_ui import ParcelasWindow
         self.parcelas_window = ParcelasWindow(
             {
                 "id": emprestimo_id,
+                "capital": emp[2] if emp else "0",   # coluna 2 = valor
+                "meses": emp[4] if emp else "1",     # coluna 4 = parcelas
+                "juros": emp[6] if emp else "0",     # opcional
                 "parcelas": parcelas,
-                "data_inicio": self.tabela_emprestimos.item(row, 1).text(),  # pega da tabela
-                "cliente": self.client_data[1]  # nome do cliente
+                "data_inicio": self.tabela_emprestimos.item(row, 1).text(),
+                "cliente": self.client_data[1]
             },
-            id_usuario=self.parent().id_usuario,  # ✅ passa o usuário logado
+            id_usuario=self.parent().id_usuario,
             parent=self,
             on_save_callback=self.show_emprestimos
         )
 
         self.parcelas_window.show()
+
 
 
     def _set_content(self, widget):
