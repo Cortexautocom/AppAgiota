@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView,
-    QLabel, QPushButton, QFrame, QAbstractItemView, QLineEdit
+    QLabel, QPushButton, QFrame, QAbstractItemView, QLineEdit, QHBoxLayout, QSizePolicy
 )
 from PySide6.QtCore import Qt, QRegularExpression
 from PySide6.QtGui import QColor, QFont, QRegularExpressionValidator
@@ -19,28 +19,47 @@ class ParcelasWindow(QWidget):
         self.on_save_callback = on_save_callback
         self.linhas_zeradas = set()
 
-        
         self.setWindowTitle(f"Parcelas - Empréstimo de {emprestimo.get('data_inicio', '')} - {emprestimo.get('cliente', '')}")
         self.setFixedSize(1150, 550)
         self.setStyleSheet("background-color: #1c2331; color: white;")
 
         layout = QVBoxLayout(self)
 
+        # 🔹 Título principal
         lbl = QLabel(f"Parcelas do Empréstimo de {emprestimo.get('data_inicio', '')} - {emprestimo.get('cliente', '')}")
         lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #9fb0c7;")
         layout.addWidget(lbl)
 
-        # 🔹 Linha extra com capital e juros iniciais
+        # 🔹 Linha extra com capital, juros, nº de parcelas e botão ➕
         capital_txt = self._fmt(float(emprestimo.get("capital", 0)))
         juros_txt = self._fmt(float(emprestimo.get("juros", 0)))
         parcelas_txt = emprestimo.get("meses", "0")
+
+        info_layout = QHBoxLayout()
+        info_layout.setContentsMargins(0, 0, 0, 0)
+
         lbl_info = QLabel(
             f"Capital inicial: {capital_txt}    |    "
             f"Juros iniciais: {juros_txt}    |    "
             f"Número de parcelas: {parcelas_txt}"
         )
         lbl_info.setStyleSheet("font-size: 14px; color: #cccccc; margin-bottom: 8px;")
-        layout.addWidget(lbl_info)
+
+        btn_add_parcela = QPushButton("➕ Nova Parcela")
+        btn_add_parcela.setStyleSheet("""
+            QPushButton {
+                background-color:#27ae60; color:white;
+                padding:4px 10px; border-radius:6px; font-weight:bold;
+            }
+            QPushButton:hover { background-color:#2ecc71; }
+        """)
+        btn_add_parcela.clicked.connect(self.adicionar_parcela)
+
+        info_layout.addWidget(lbl_info)
+        info_layout.addStretch()
+        info_layout.addWidget(btn_add_parcela)
+
+        layout.addLayout(info_layout)
 
         # 🔹 Criação da tabela
         self.tabela = QTableWidget(0, 12)
@@ -81,7 +100,9 @@ class ParcelasWindow(QWidget):
 
         # 🔹 Carregar parcelas reais
         parcelas_do_emprestimo = carregar_parcelas_por_emprestimo(emprestimo["id"])
-        fonte_negrito = QFont(); fonte_negrito.setBold(True)
+        fonte_negrito = QFont()
+        fonte_negrito.setBold(True)
+
 
         for linha, parcela in enumerate(parcelas_do_emprestimo):
             (
@@ -398,4 +419,107 @@ class ParcelasWindow(QWidget):
         except Exception as e:
             print(f"[DEBUG] Erro em calcular_pg: {e}")
 
+    def adicionar_parcela(self):
+        """Adiciona uma nova parcela no final, com valor padrão do empréstimo e vencimento +30 dias da última"""
+        from datetime import datetime, timedelta
 
+        row_total = self.tabela.rowCount() - 1  # última linha é o totalizador
+        nova_linha = row_total  # insere antes do totalizador
+
+        self.tabela.insertRow(nova_linha)
+
+        # número da nova parcela = última parcela + 1
+        numero = str(nova_linha + 1)
+
+        # valor padrão = prestação original do empréstimo
+        try:
+            valor_prestacao = float(self.emprestimo.get("prestacao", 0))
+            if not valor_prestacao or valor_prestacao == 0:
+                capital = float(self.emprestimo.get("capital", 0))
+                juros = float(self.emprestimo.get("juros", 0))
+                n = int(str(self.emprestimo.get("meses", 1)).strip())
+                valor_prestacao = (capital + juros) / n if n > 0 else 0
+        except Exception:
+            valor_prestacao = 0
+        valor_fmt = self._fmt(valor_prestacao)
+
+        # calcula vencimento = último vencimento + 30 dias
+        data_venc_ultima = self.tabela.item(row_total - 1, 1).text() if row_total > 0 else ""
+        try:
+            dt = datetime.strptime(data_venc_ultima, "%d/%m/%Y")
+            novo_venc = (dt + timedelta(days=30)).strftime("%d/%m/%Y")
+        except Exception:
+            novo_venc = ""
+            print(f"[DEBUG] Não foi possível calcular novo vencimento a partir de '{data_venc_ultima}'")
+
+        # Nº
+        item_num = QTableWidgetItem(numero)
+        item_num.setTextAlignment(Qt.AlignCenter)
+        item_num.setFont(QFont("", weight=QFont.Bold))
+        self.tabela.setItem(nova_linha, 0, item_num)
+
+        # Vencimento
+        item_venc = QTableWidgetItem(novo_venc)
+        item_venc.setTextAlignment(Qt.AlignCenter)
+        self.tabela.setItem(nova_linha, 1, item_venc)
+
+        # Valor
+        item_valor = QTableWidgetItem(valor_fmt)
+        item_valor.setTextAlignment(Qt.AlignCenter)
+        self.tabela.setItem(nova_linha, 2, item_valor)
+
+        # Juros
+        item_juros = QTableWidgetItem("")
+        item_juros.setTextAlignment(Qt.AlignCenter)
+        self.tabela.setItem(nova_linha, 3, item_juros)
+
+        # Desconto
+        item_desc = QTableWidgetItem("")
+        item_desc.setTextAlignment(Qt.AlignCenter)
+        self.tabela.setItem(nova_linha, 4, item_desc)
+
+        # Botão de cálculo
+        btn_calc = QPushButton("⚙️")
+        btn_calc.setStyleSheet("background-color:#3498db; color:white; border-radius:6px;")
+        btn_calc.clicked.connect(self.handle_calc_click)
+        self.tabela.setCellWidget(nova_linha, 5, btn_calc)
+
+        # Pg. Principal
+        item_pg_principal = QTableWidgetItem("")
+        item_pg_principal.setTextAlignment(Qt.AlignCenter)
+        self.tabela.setItem(nova_linha, 6, item_pg_principal)
+
+        # Pg. Juros
+        item_pg_juros = QTableWidgetItem("")
+        item_pg_juros.setTextAlignment(Qt.AlignCenter)
+        self.tabela.setItem(nova_linha, 7, item_pg_juros)
+
+        # Valor Pago
+        item_pago = QTableWidgetItem("")
+        item_pago.setTextAlignment(Qt.AlignCenter)
+        self.tabela.setItem(nova_linha, 8, item_pago)
+
+        # Saldo
+        item_saldo = QTableWidgetItem(valor_fmt)
+        item_saldo.setTextAlignment(Qt.AlignCenter)
+        item_saldo.setFlags(item_saldo.flags() & ~Qt.ItemIsEditable)
+        self.tabela.setItem(nova_linha, 9, item_saldo)
+
+        # Data do Pag. (QLineEdit com validador de data)
+        from PySide6.QtGui import QRegularExpressionValidator
+        from PySide6.QtCore import QRegularExpression
+        edit_data = QLineEdit()
+        edit_data.setPlaceholderText("dd/mm/aaaa")
+        regex = QRegularExpression(r"^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4}$")
+        validator = QRegularExpressionValidator(regex, edit_data)
+        edit_data.setValidator(validator)
+        edit_data.setAlignment(Qt.AlignCenter)
+        self.tabela.setCellWidget(nova_linha, 10, edit_data)
+
+        # Botão Zerar
+        btn_zerar = QPushButton("⚡")
+        btn_zerar.setStyleSheet("background-color:#e74c3c; color:white; border-radius:6px;")
+        btn_zerar.clicked.connect(self.handle_zerar_click)
+        self.tabela.setCellWidget(nova_linha, 11, btn_zerar)
+
+        print(f"[DEBUG] Nova parcela adicionada: Nº {numero}, valor={valor_fmt}, vencimento={novo_venc}")
