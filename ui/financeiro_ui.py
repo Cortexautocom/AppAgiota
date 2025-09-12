@@ -180,7 +180,10 @@ class FinanceiroWindow(QWidget):
             tabela.setItem(linha, 5, item_juros)
 
             # Taxa (antes Observação → agora na coluna 6)
-            item_taxa = QTableWidgetItem(emp[5] or "")
+            taxa_txt = emp[5] or ""
+            if taxa_txt.lower().startswith("taxa "):
+                taxa_txt = taxa_txt[5:]  # remove o prefixo "Taxa "
+            item_taxa = QTableWidgetItem(taxa_txt)
             item_taxa.setFlags(item_taxa.flags() & ~Qt.ItemIsEditable)
             item_taxa.setTextAlignment(Qt.AlignCenter)
             tabela.setItem(linha, 6, item_taxa)

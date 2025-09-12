@@ -1,14 +1,13 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView,
-    QLabel, QPushButton, QFrame, QAbstractItemView
+    QLabel, QPushButton, QFrame, QAbstractItemView, QLineEdit
 )
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtCore import Qt, QRegularExpression
+from PySide6.QtGui import QColor, QFont, QRegularExpressionValidator
+
 import uuid
 
-from parcelas import parcelas, salvar_parcelas, carregar_parcelas_por_emprestimo
-
-from functools import partial
+from parcelas import carregar_parcelas_por_emprestimo
 
 class ParcelasWindow(QWidget):
     """Janela para visualizar/editar parcelas de um empréstimo."""
@@ -18,7 +17,9 @@ class ParcelasWindow(QWidget):
         self.emprestimo = emprestimo
         self.id_usuario = id_usuario
         self.on_save_callback = on_save_callback
+        self.linhas_zeradas = set()
 
+        
         self.setWindowTitle(f"Parcelas - Empréstimo de {emprestimo.get('data_inicio', '')} - {emprestimo.get('cliente', '')}")
         self.setFixedSize(1150, 550)
         self.setStyleSheet("background-color: #1c2331; color: white;")
@@ -30,11 +31,11 @@ class ParcelasWindow(QWidget):
         layout.addWidget(lbl)
 
         # 🔹 Criação da tabela
-        self.tabela = QTableWidget(0, 11)
+        self.tabela = QTableWidget(0, 12)
         self.tabela.setHorizontalHeaderLabels([
             "Nº", "Vencimento", "Valor", "Juros", "Desconto",
             "Calc.", "Pg. Principal", "Pg. Juros",
-            "Valor Pago", "Saldo", "Data do Pag."
+            "Valor Pago", "Saldo", "Data do Pag.", "Zerar"
         ])
 
         # Aparência da tabela
@@ -135,11 +136,27 @@ class ParcelasWindow(QWidget):
             item_saldo.setTextAlignment(Qt.AlignCenter)
             item_saldo.setFlags(item_saldo.flags() & ~Qt.ItemIsEditable)
             self.tabela.setItem(linha, 9, item_saldo)
+            
+            # Data do Pag. (validador de data, inicia vazio)
+            edit_data = QLineEdit()
+            edit_data.setPlaceholderText("dd/mm/aaaa")
+            if data_pag and data_pag.strip():
+                edit_data.setText(data_pag)
 
-            # Data do Pag.
-            item_data = QTableWidgetItem(data_pag or "")
-            item_data.setTextAlignment(Qt.AlignCenter)
-            self.tabela.setItem(linha, 10, item_data)
+            # 🔹 Regex que aceita apenas datas dd/mm/yyyy (01/01/1900 até 31/12/2099)
+            regex = QRegularExpression(r"^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4}$")
+            validator = QRegularExpressionValidator(regex, edit_data)
+            edit_data.setValidator(validator)
+
+            edit_data.setAlignment(Qt.AlignCenter)
+            self.tabela.setCellWidget(linha, 10, edit_data)
+
+            # Botão de zerar saldo
+            btn_zerar = QPushButton("⚡")
+            btn_zerar.setStyleSheet("background-color:#e74c3c; color:white; border-radius:6px;")
+            btn_zerar.clicked.connect(self.handle_zerar_click)
+            self.tabela.setCellWidget(linha, 11, btn_zerar)
+
 
         # 🔹 Calcula saldo inicial de cada linha
         for row in range(self.tabela.rowCount()):
@@ -178,6 +195,18 @@ class ParcelasWindow(QWidget):
 
         self.atualizar_totalizadores()
     
+    def handle_zerar_click(self):
+        sender = self.sender()
+        if not sender:
+            return
+        row = self.tabela.indexAt(sender.pos()).row()
+        if row >= 0:
+            print(f"[DEBUG] Zerando saldo na linha {row}")
+            self.linhas_zeradas.add(row)
+            self.tabela.item(row, 9).setText(self._fmt(0.0))
+
+
+
     def handle_calc_click(self):
         sender = self.sender()
         print(f"[DEBUG] Botão clicado: {sender}")
@@ -247,14 +276,15 @@ class ParcelasWindow(QWidget):
 
         # Saldo = Valor + Juros - Desconto - Pg. Principal - Pg. Juros
         try:
-            valor = self._get_valor(item.row(), 2)
-            juros = self._get_valor(item.row(), 3)
-            desconto = self._get_valor(item.row(), 4)
-            pg_principal = self._get_valor(item.row(), 6)
-            pg_juros = self._get_valor(item.row(), 7)
-            saldo = valor + juros - desconto - pg_principal - pg_juros
-            celula = self.tabela.item(item.row(), 9)
-            celula.setText(self._fmt(saldo))
+            if item.row() not in self.linhas_zeradas:  # 🔹 não recalcula se foi zerado manualmente
+                valor = self._get_valor(item.row(), 2)
+                juros = self._get_valor(item.row(), 3)
+                desconto = self._get_valor(item.row(), 4)
+                pg_principal = self._get_valor(item.row(), 6)
+                pg_juros = self._get_valor(item.row(), 7)
+                saldo = valor + juros - desconto - pg_principal - pg_juros
+                celula = self.tabela.item(item.row(), 9)
+                celula.setText(self._fmt(saldo))
         except:
             pass
 
@@ -296,8 +326,15 @@ class ParcelasWindow(QWidget):
             pg_principal = self.tabela.item(linha, 6).text()
             pg_juros = self.tabela.item(linha, 7).text()
             valor_pago = self.tabela.item(linha, 8).text()
-            residual = self.tabela.item(linha, 9).text()
-            data_pag = self.tabela.item(linha, 10).text()
+            residual = self.tabela.item(linha, 9).text()                    
+            if linha in self.linhas_zeradas:
+                residual = "0"
+            widget = self.tabela.cellWidget(linha, 10)
+            if widget:
+                data_pag = widget.text()
+            else:
+                data_pag = self.tabela.item(linha, 10).text() if self.tabela.item(linha, 10) else ""
+
             if linha < len(parcelas):
                 parcela_id = parcelas[linha][0]
             else:
