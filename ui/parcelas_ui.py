@@ -331,21 +331,22 @@ class ParcelasWindow(QWidget):
         print(f"[DEBUG] calcular_pg chamado para linha {row}")
         try:
             capital = float(self.emprestimo.get("capital", 0))
-            n = int(self.emprestimo.get("meses", 1))
-            valor_parcela = self._get_valor(row, 2)
+            n = int(str(self.emprestimo.get("meses", 1)).strip())  # 🔹 força conversão para inteiro
+            total_juros = float(self.emprestimo.get("juros", 0))
 
-            print(f"[DEBUG] capital={capital}, meses={n}, valor_parcela={valor_parcela}")
+            print(f"[DEBUG] capital={capital}, meses={n}, total_juros={total_juros}")
 
-            if capital <= 0 or n <= 0 or valor_parcela <= 0:
+            if capital <= 0 or n <= 0:
                 print("[DEBUG] Dados inválidos para cálculo, abortando")
                 return
 
             pg_principal = capital / n
-            pg_juros = valor_parcela - pg_principal
+            pg_juros = total_juros / n
             print(f"[DEBUG] pg_principal={pg_principal}, pg_juros={pg_juros}")
 
             self.tabela.item(row, 6).setText(self._fmt(pg_principal))
             self.tabela.item(row, 7).setText(self._fmt(pg_juros))
         except Exception as e:
             print(f"[DEBUG] Erro em calcular_pg: {e}")
+
 
