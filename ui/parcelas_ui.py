@@ -87,8 +87,17 @@ class ParcelasWindow(QWidget):
         header.setSectionResizeMode(0, QHeaderView.Fixed)
         self.tabela.setColumnWidth(0, 40)
 
+        header.setSectionResizeMode(5, QHeaderView.Fixed)
+        self.tabela.setColumnWidth(5, 40)
+
+        header.setSectionResizeMode(11, QHeaderView.Fixed)
+        self.tabela.setColumnWidth(11, 40)
+
+        # As demais continuam elásticas
         for col in range(1, self.tabela.columnCount()):
-            header.setSectionResizeMode(col, QHeaderView.Stretch)
+            if col not in [5, 11]:
+                header.setSectionResizeMode(col, QHeaderView.Stretch)
+
 
         self.tabela.verticalHeader().setVisible(False)
         self.tabela.setSelectionMode(QAbstractItemView.NoSelection)
@@ -146,8 +155,18 @@ class ParcelasWindow(QWidget):
             self.tabela.setItem(linha, 4, item_desc)
 
             # Botão de cálculo
-            btn_calc = QPushButton("⚙️")
-            btn_calc.setStyleSheet("background-color:#3498db; color:white; border-radius:6px;")
+            btn_calc = QPushButton("⚡")
+            btn_calc.setStyleSheet("""
+                QPushButton {
+                    background-color: transparent;
+                    color: #3498db;
+                    border: none;
+                    font-size: 16px;
+                }
+                QPushButton:hover {
+                    color: #5dade2;  /* tom mais claro ao passar o mouse */
+                }
+            """)
             print(f"[DEBUG] Criando botão de cálculo na linha {linha}")
             btn_calc.clicked.connect(self.handle_calc_click)
             self.tabela.setCellWidget(linha, 5, btn_calc)
@@ -188,8 +207,18 @@ class ParcelasWindow(QWidget):
             self.tabela.setCellWidget(linha, 10, edit_data)
 
             # Botão de zerar saldo
-            btn_zerar = QPushButton("⚡")
-            btn_zerar.setStyleSheet("background-color:#e74c3c; color:white; border-radius:6px;")
+            btn_zerar = QPushButton("✂️")
+            btn_zerar.setStyleSheet("""
+                QPushButton {
+                    background-color: transparent;
+                    color: #e74c3c;
+                    border: none;
+                    font-size: 16px;
+                }
+                QPushButton:hover {
+                    color: #ff6b6b;
+                }
+            """)
             btn_zerar.clicked.connect(self.handle_zerar_click)
             self.tabela.setCellWidget(linha, 11, btn_zerar)
 
@@ -267,21 +296,20 @@ class ParcelasWindow(QWidget):
         self.tabela.insertRow(row)
 
         for col in range(self.tabela.columnCount()):
-            if col == 5:  # pula a coluna do botão
-                continue
             item = QTableWidgetItem("")
             item.setTextAlignment(Qt.AlignCenter)
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
             item.setBackground(QColor("#4e586e"))
 
-            if 2 <= col <= 8:
+            if col in [2, 3, 4, 6, 7, 8]:
                 item.setFont(fonte_negrito)
                 item.setText("R$ 0,00")
 
+            if col == 5:
+                item.setText("")
+
             self.tabela.setItem(row, col, item)
             item.setTextAlignment(Qt.AlignCenter)
-
-
 
     def formatar_valores(self, item):
         if not item or item.row() == self.tabela.rowCount() - 1:
@@ -340,7 +368,7 @@ class ParcelasWindow(QWidget):
 
     def atualizar_totalizadores(self):
         row_total = self.tabela.rowCount() - 1
-        for col in [2, 3, 4, 6, 7, 8]:
+        for col in [2, 3, 4, 6, 7, 8, 9]:  # 🔹 agora inclui o Saldo
             total = 0.0
             for r in range(row_total):
                 total += self._get_valor(r, col)

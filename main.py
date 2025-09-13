@@ -594,7 +594,7 @@ class ModernWindow(QMainWindow):
             action_layout.setSpacing(6)
 
             # Botão 📑 Financeiro
-            btn_financeiro = QPushButton("📑")
+            btn_financeiro = QPushButton("💵")
             btn_financeiro.setFixedSize(28, 28)
             btn_financeiro.setToolTip("Financeiro")
             btn_financeiro.setStyleSheet("""
