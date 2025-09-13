@@ -19,7 +19,7 @@ class ClientForm(QWidget):
         super().__init__(parent)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
         self.setWindowTitle("Cliente")
-        self.setFixedSize(340, 400)
+        self.setFixedSize(340, 420)
         self.setStyleSheet("background-color: #1c2331; color: white;")
 
         self.parent_callback = parent_callback
@@ -92,16 +92,29 @@ class ClientForm(QWidget):
 
         # Botão salvar
         btn_save = QPushButton("Salvar")
-        btn_save.setMinimumHeight(40)
+        btn_save.setFixedSize(150, 30)
         btn_save.setStyleSheet("""
             QPushButton {
-                background-color: #3498db; color: white;
-                padding: 10px; border-radius: 8px; font-weight: 600;
+                background-color: #27ae60; color: white;
+                padding: 8px; border-radius: 6px; font-weight: bold;
             }
-            QPushButton:hover { background-color: #2980b9; }
+            QPushButton:hover { background-color: #2ecc71; }
         """)
         btn_save.clicked.connect(self.save_client)
-        layout.addWidget(btn_save)
+        
+        # Espaço flexível acima do botão
+        layout.addStretch()        
+        btn_layout = QHBoxLayout()
+        btn_layout.setContentsMargins(0, 10, 0, 0)  # 🔹 20 pixels de espaço acima
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_save)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+
+        # Espaço flexível abaixo do botão
+        layout.addStretch()
+
+        #layout.addWidget(btn_save)
 
     def save_client(self):
         data = {}

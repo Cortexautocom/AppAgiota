@@ -439,14 +439,27 @@ class ModernWindow(QMainWindow):
         layout.addLayout(filters_row)
 
         # Tabela de resultados
-        self.table_results = QTableWidget(0, 7)
+        self.table_results = QTableWidget(0, 8)
         self.table_results.cellDoubleClicked.connect(self.abrir_financeiro_cliente)
 
         self.table_results.setSelectionMode(QAbstractItemView.NoSelection)
         self.table_results.setHorizontalHeaderLabels(
-            ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação", "Ações"]
+            ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação", "Financ.", "Editar"]
         )
-        self.table_results.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        header = self.table_results.horizontalHeader()
+
+        # As primeiras 6 colunas (Nome até Indicação) ficam expansíveis
+        for col in range(6):
+            header.setSectionResizeMode(col, QHeaderView.Stretch)
+
+        # Coluna Financeiro (índice 6) fixa em 80px
+        header.setSectionResizeMode(6, QHeaderView.Fixed)
+        self.table_results.setColumnWidth(6, 60)
+
+        # Coluna Editar (índice 7) fixa em 80px
+        header.setSectionResizeMode(7, QHeaderView.Fixed)
+        self.table_results.setColumnWidth(7, 60)
+
         self.table_results.setStyleSheet("""
             QTableWidget {
                 background-color: #2c3446; color: white;
@@ -555,52 +568,51 @@ class ModernWindow(QMainWindow):
             row = self.table_results.rowCount()
             self.table_results.insertRow(row)
 
-            # Cabeçalhos visuais: ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação", "Ações"]
-
             # Nome
             item_nome = QTableWidgetItem(c[1])
             item_nome.setFlags(item_nome.flags() & ~Qt.ItemIsEditable)
+            #item_nome.setTextAlignment(Qt.AlignCenter)
             self.table_results.setItem(row, 0, item_nome)
 
             # CPF
             item_cpf = QTableWidgetItem(c[2])
             item_cpf.setFlags(item_cpf.flags() & ~Qt.ItemIsEditable)
+            item_cpf.setTextAlignment(Qt.AlignCenter)
             self.table_results.setItem(row, 1, item_cpf)
 
             # Endereço
             item_endereco = QTableWidgetItem(c[4])
             item_endereco.setFlags(item_endereco.flags() & ~Qt.ItemIsEditable)
+            item_endereco.setTextAlignment(Qt.AlignCenter)
             self.table_results.setItem(row, 2, item_endereco)
 
             # Cidade
             item_cidade = QTableWidgetItem(c[5])
             item_cidade.setFlags(item_cidade.flags() & ~Qt.ItemIsEditable)
+            item_cidade.setTextAlignment(Qt.AlignCenter)
             self.table_results.setItem(row, 3, item_cidade)
 
             # Telefone
             item_tel = QTableWidgetItem(c[3])
             item_tel.setFlags(item_tel.flags() & ~Qt.ItemIsEditable)
+            item_tel.setTextAlignment(Qt.AlignCenter)
             self.table_results.setItem(row, 4, item_tel)
 
             # Indicação
             item_indicacao = QTableWidgetItem(c[6])
             item_indicacao.setFlags(item_indicacao.flags() & ~Qt.ItemIsEditable)
+            item_indicacao.setTextAlignment(Qt.AlignCenter)
             self.table_results.setItem(row, 5, item_indicacao)
-            
-            # Layout horizontal para os botões de ação
-            action_widget = QWidget()
-            action_layout = QHBoxLayout(action_widget)
-            action_layout.setContentsMargins(0, 0, 0, 0)
-            action_layout.setSpacing(6)
 
-            # Botão 📑 Financeiro
+            # Botão 💵 Financeiro
+            # Botão 💵 Financeiro centralizado
             btn_financeiro = QPushButton("💵")
             btn_financeiro.setFixedSize(28, 28)
             btn_financeiro.setToolTip("Financeiro")
             btn_financeiro.setStyleSheet("""
                 QPushButton {
                     background: none; color: white;
-                    border: none; font-size: 16px;
+                    border: none; font-size: 18px;
                 }
                 QPushButton:hover {
                     background-color: #3a455b;
@@ -608,9 +620,17 @@ class ModernWindow(QMainWindow):
                 }
             """)
             btn_financeiro.clicked.connect(lambda _, cliente=c: self.open_dados_cliente(cliente))
-            action_layout.addWidget(btn_financeiro)
 
-            # Botão ✏️ Editar Cliente
+            widget_fin = QWidget()
+            layout_fin = QHBoxLayout(widget_fin)
+            layout_fin.setContentsMargins(0, 0, 0, 0)
+            layout_fin.addStretch()
+            layout_fin.addWidget(btn_financeiro)
+            layout_fin.addStretch()
+
+            self.table_results.setCellWidget(row, 6, widget_fin)
+
+            # Botão ✏️ Editar centralizado
             btn_edit = QPushButton("✏️")
             btn_edit.setFixedSize(28, 28)
             btn_edit.setToolTip("Editar dados")
@@ -635,11 +655,19 @@ class ModernWindow(QMainWindow):
                 },
                 edit_index=next((i for i, cli in enumerate(self.clients) if cli[0] == cliente[0]), None)
             ))
-            action_layout.addWidget(btn_edit)
 
-            self.table_results.setCellWidget(row, 6, action_widget)
+            widget_edit = QWidget()
+            layout_edit = QHBoxLayout(widget_edit)
+            layout_edit.setContentsMargins(0, 0, 0, 0)
+            layout_edit.addStretch()
+            layout_edit.addWidget(btn_edit)
+            layout_edit.addStretch()
+
+            self.table_results.setCellWidget(row, 7, widget_edit)
+
 
         self.table_results.itemChanged.connect(self.handle_table_edit)
+
 
     def open_finance_form(self, client_data):
         """Abre o formulário de empréstimo para o cliente selecionado."""
