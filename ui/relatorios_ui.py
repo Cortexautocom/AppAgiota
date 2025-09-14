@@ -1,8 +1,15 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTabWidget, QHBoxLayout, QPushButton,
-    QDateEdit, QTableWidget, QHeaderView, QCalendarWidget
+    QDateEdit, QTableWidget, QTableWidgetItem, QHeaderView, QCalendarWidget, QComboBox
 )
 from PySide6.QtCore import Qt, QDate
+
+ultima_pesquisa = {
+    "data_ini": None,
+    "data_fim": None,
+    "tipo": None,
+    "modo": None
+}
 
 
 class RelatoriosWindow(QWidget):
@@ -13,6 +20,10 @@ class RelatoriosWindow(QWidget):
         self.setWindowTitle("Relatórios")
 
         layout = QVBoxLayout(self)
+        self.ultima_data_ini = None
+        self.ultima_data_fim = None
+        self.ultimo_tipo = None
+        self.ultimo_modo = None
 
         # Título
         title = QLabel("📊 Relatórios")
@@ -46,13 +57,18 @@ class RelatoriosWindow(QWidget):
         self._setup_clientes_tab()
         self.tabs.addTab(self.tab_clientes, "👥 Relatório por Cliente")
 
+        self.ultima_data_ini = None
+        self.ultima_data_fim = None
+        self.ultimo_tipo = None
+        self.ultimo_modo = None
+
         layout.addWidget(self.tabs)
 
     # ------------------------
     def _setup_previsao_tab(self):
         layout = QVBoxLayout(self.tab_previsao)
 
-        # Linha de filtros (datas + combo + botão)
+        # Linha de filtros (datas + combos + botão)
         filtro_layout = QHBoxLayout()
 
         # ===== Data Inicial =====
@@ -62,7 +78,6 @@ class RelatoriosWindow(QWidget):
         self.data_inicial.setCalendarPopup(True)
 
         # 🔹 Criar calendário customizado para Data Inicial
-        
         cal_inicial = QCalendarWidget()
         cal_inicial.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)  # 🔹 remove coluna da semana
         cal_inicial.setStyleSheet("""
@@ -105,7 +120,6 @@ class RelatoriosWindow(QWidget):
         cal_final.setStyleSheet(cal_inicial.styleSheet())
         self.data_final.setCalendarWidget(cal_final)
 
-
         # 🔹 Estilo dos QDateEdit
         dateedit_style = """
             QDateEdit {
@@ -132,6 +146,8 @@ class RelatoriosWindow(QWidget):
             QPushButton:hover { background-color:#2980b9; }
         """)
 
+        btn_filtrar.clicked.connect(self.gerar_previsao)
+
         # ===== Tipo de previsão (novo seletor) =====
         from PySide6.QtWidgets import QComboBox
         self.cb_tipo = QComboBox()
@@ -153,6 +169,12 @@ class RelatoriosWindow(QWidget):
             }
         """)
 
+        # ===== Novo Combo: Modo de relatório =====
+        self.cb_modo = QComboBox()
+        self.cb_modo.addItems(["Consolidado", "Detalhado"])
+        self.cb_modo.setCurrentIndex(0)  # começa em Consolidado
+        self.cb_modo.setStyleSheet(self.cb_tipo.styleSheet())
+
         # Adicionando widgets na ordem pedida
         filtro_layout.addWidget(QLabel("Data Inicial:"))
         filtro_layout.addWidget(self.data_inicial)
@@ -160,14 +182,17 @@ class RelatoriosWindow(QWidget):
         filtro_layout.addWidget(self.data_final)
         filtro_layout.addWidget(QLabel("Mostrar:"))
         filtro_layout.addWidget(self.cb_tipo)
+        filtro_layout.addWidget(QLabel("Relatório:"))
+        filtro_layout.addWidget(self.cb_modo)
         filtro_layout.addStretch()
         filtro_layout.addWidget(btn_filtrar)
 
         layout.addLayout(filtro_layout)
 
         # ===== Tabela de resultados =====
-        self.tabela_previsao = QTableWidget(0, 3)
-        self.tabela_previsao.setHorizontalHeaderLabels(["Data", "Capital", "Juros"])
+        # Agora com 4 colunas (Cliente + Data + Capital + Juros)
+        self.tabela_previsao = QTableWidget(0, 4)
+        self.tabela_previsao.setHorizontalHeaderLabels(["Cliente", "Data", "Capital", "Juros"])
         self.tabela_previsao.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
         # 🔹 Estilo do cabeçalho
@@ -185,8 +210,21 @@ class RelatoriosWindow(QWidget):
 
         layout.addWidget(self.tabela_previsao)
 
+        if self.ultima_data_ini and self.ultima_data_fim:
+            self.gerar_previsao()
+
         # 🔹 Ação do combo: mostrar/ocultar colunas
         self.cb_tipo.currentIndexChanged.connect(self._toggle_columns)
+
+        if ultima_pesquisa["data_ini"] and ultima_pesquisa["data_fim"]:
+            # restaurar filtros na tela
+            self.data_inicial.setDate(QDate.fromString(ultima_pesquisa["data_ini"], "dd/MM/yyyy"))
+            self.data_final.setDate(QDate.fromString(ultima_pesquisa["data_fim"], "dd/MM/yyyy"))
+            self.cb_tipo.setCurrentText(ultima_pesquisa["tipo"])
+            self.cb_modo.setCurrentText(ultima_pesquisa["modo"])
+
+            # gerar relatório com os filtros salvos
+            self.gerar_previsao()
 
     # ------------------------
     def _toggle_columns(self, index):
@@ -232,3 +270,121 @@ class RelatoriosWindow(QWidget):
         self.tabela_clientes.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
         layout.addWidget(self.tabela_clientes)
+
+    def gerar_previsao(self):
+        """Gera o relatório de previsão de recebimentos conforme filtros."""
+        from parcelas import carregar_parcelas_por_emprestimo
+        from emprestimos import carregar_emprestimos
+        from clientes import carregar_clientes
+        from datetime import datetime
+
+        # limpar tabela
+        self.tabela_previsao.setRowCount(0)
+
+        # pegar filtros
+        data_ini = self.data_inicial.date().toString("dd/MM/yyyy")
+        data_fim = self.data_final.date().toString("dd/MM/yyyy")
+        dt_ini = datetime.strptime(data_ini, "%d/%m/%Y")
+        dt_fim = datetime.strptime(data_fim, "%d/%m/%Y")
+
+        tipo = self.cb_tipo.currentText()
+        modo = self.cb_modo.currentText()
+
+        # 🔹 salvar como última pesquisa
+        ultima_pesquisa["data_ini"] = data_ini
+        ultima_pesquisa["data_fim"] = data_fim
+        ultima_pesquisa["tipo"] = tipo
+        ultima_pesquisa["modo"] = modo
+
+        # carregar dados brutos
+        emprestimos = carregar_emprestimos()
+        clientes = {c[0]: c[1] for c in carregar_clientes()}  # dict id_cliente → nome
+
+        linhas = []
+
+        for emp in emprestimos:
+            emp_id, id_cliente = emp[0], emp[1]
+            nome_cliente = clientes.get(id_cliente, "Desconhecido")
+            parcelas = carregar_parcelas_por_emprestimo(emp_id)
+
+            for p in parcelas:
+                (
+                    _id, _id_emp, num, valor, venc,
+                    juros, desconto, pg_principal, pg_juros,
+                    valor_pago, residual, data_pag, _id_usuario
+                ) = p
+
+                if not venc:
+                    continue
+
+                try:
+                    dt_venc = datetime.strptime(venc, "%d/%m/%Y")
+                except:
+                    continue
+
+                if dt_venc < dt_ini or dt_venc > dt_fim:
+                    continue
+
+                # converter valores
+                val_capital = 0.0
+                val_juros = 0.0
+                try:
+                    v = float(str(valor).replace("R$", "").replace(".", "").replace(",", "."))
+                    val_capital = v
+                except:
+                    pass
+                try:
+                    j = float(str(juros).replace("R$", "").replace(".", "").replace(",", "."))
+                    val_juros = j
+                except:
+                    pass
+
+                linhas.append({
+                    "cliente": nome_cliente,
+                    "data": venc,
+                    "capital": val_capital,
+                    "juros": val_juros
+                })
+
+        # gerar tabela conforme modo
+        if modo == "Detalhado":
+            for linha in linhas:
+                row = self.tabela_previsao.rowCount()
+                self.tabela_previsao.insertRow(row)
+                self.tabela_previsao.setItem(row, 0, QTableWidgetItem(linha["cliente"]))
+                self.tabela_previsao.setItem(row, 1, QTableWidgetItem(linha["data"]))
+
+                if tipo in ["Capital", "Capital + Juros"]:
+                    self.tabela_previsao.setItem(row, 2, QTableWidgetItem(f"R$ {linha['capital']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")))
+                else:
+                    self.tabela_previsao.setItem(row, 2, QTableWidgetItem(""))
+
+                if tipo in ["Juros", "Capital + Juros"]:
+                    self.tabela_previsao.setItem(row, 3, QTableWidgetItem(f"R$ {linha['juros']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")))
+                else:
+                    self.tabela_previsao.setItem(row, 3, QTableWidgetItem(""))
+
+        else:  # Consolidado
+            consol = {}
+            for linha in linhas:
+                key = linha["cliente"]
+                if key not in consol:
+                    consol[key] = {"capital": 0.0, "juros": 0.0}
+                consol[key]["capital"] += linha["capital"]
+                consol[key]["juros"] += linha["juros"]
+
+            for cliente, vals in consol.items():
+                row = self.tabela_previsao.rowCount()
+                self.tabela_previsao.insertRow(row)
+                self.tabela_previsao.setItem(row, 0, QTableWidgetItem(cliente))
+                self.tabela_previsao.setItem(row, 1, QTableWidgetItem("-"))
+
+                if tipo in ["Capital", "Capital + Juros"]:
+                    self.tabela_previsao.setItem(row, 2, QTableWidgetItem(f"R$ {vals['capital']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")))
+                else:
+                    self.tabela_previsao.setItem(row, 2, QTableWidgetItem(""))
+
+                if tipo in ["Juros", "Capital + Juros"]:
+                    self.tabela_previsao.setItem(row, 3, QTableWidgetItem(f"R$ {vals['juros']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")))
+                else:
+                    self.tabela_previsao.setItem(row, 3, QTableWidgetItem(""))
