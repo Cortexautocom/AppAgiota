@@ -10,6 +10,7 @@ from PySide6.QtCore import (
     
 )
 from ui.emprestimos_ui import EmprestimoForm
+from ui.relatorios_ui import RelatoriosWindow
 
 from ui.splash import SplashScreen
 
@@ -905,6 +906,9 @@ class ModernWindow(QMainWindow):
 
         self._replace_main_content(self.reports_widget)
 
+    def show_reports_screen(self):
+        self.reports_widget = RelatoriosWindow(parent=self)
+        self._replace_main_content(self.reports_widget)
 
 # =====================================================================
 # SaveWorker (Thread para salvar em segundo plano)

@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QFrame, QLabel, QLineEdit, QPushButton, QMessageBox, QFormLayout, QHBoxLayout, QDateEdit
+    QWidget, QVBoxLayout, QFrame, QLabel, QLineEdit, QPushButton, QMessageBox, QFormLayout, QHBoxLayout, QDateEdit, QCalendarWidget
 )
 from PySide6.QtGui import QColor, QIntValidator
 from PySide6.QtWidgets import QGraphicsDropShadowEffect
@@ -85,6 +85,36 @@ class EmprestimoForm(QWidget):
             }
         """)
 
+        # 🔹 Aplicar calendário customizado sem coluna de semanas
+        cal_emprestimo = QCalendarWidget()
+        cal_emprestimo.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)  # 🔹 remove coluna da semana
+        cal_emprestimo.setStyleSheet("""
+            QCalendarWidget QWidget {
+                background-color: #1c2331;
+                color: white;
+            }
+            QCalendarWidget QAbstractItemView:enabled {
+                background-color: #1c2331;
+                color: white;
+                selection-background-color: #3498db;
+                selection-color: white;
+            }
+            QCalendarWidget QAbstractItemView:disabled {
+                color: #555;
+            }
+            QCalendarWidget QTableView {
+                background-color: #1c2331;
+                alternate-background-color: #1c2331;
+                selection-background-color: #3498db;
+                selection-color: white;
+            }
+            QCalendarWidget QTableView QHeaderView::section {
+                background-color: #1c2331;
+                color: #9fb0c7;
+                border: none;
+            }
+        """)
+        self.inp_data.setCalendarWidget(cal_emprestimo)
 
         form.addRow(QLabel("Data do empréstimo:"), self.inp_data)    
 
