@@ -247,6 +247,22 @@ class ModernWindow(QMainWindow):
         self.btn_clientes.clicked.connect(self.show_search_screen)
         menu_layout.addWidget(self.btn_clientes)
 
+        # Botão para relatórios
+        self.btn_relatorios = QPushButton("📊 Relatórios")
+        self.btn_relatorios.setStyleSheet("""
+            QPushButton {
+                background: none; color: white;
+                padding: 12px; text-align: left;
+                font-size: 15px; border: none;
+            }
+            QPushButton:hover {
+                background-color: #374157;
+                border-radius: 5px;
+            }
+        """)
+        self.btn_relatorios.clicked.connect(self.show_reports_screen)
+        menu_layout.addWidget(self.btn_relatorios)
+
         # Botão para funções extras
         self.btn_extras = QPushButton("⚙️ Funções Extras")
         self.btn_extras.setStyleSheet("""
@@ -870,7 +886,24 @@ class ModernWindow(QMainWindow):
         self.finance_window.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowMinimizeButtonHint)
         self.finance_window.setAttribute(Qt.WA_DeleteOnClose)  # fecha de vez ao clicar no X
         self.finance_window.show()
+
           
+    # ======== Tela de Relatórios ========
+    def show_reports_screen(self):
+        """Exibe a tela de relatórios (placeholder inicial)."""
+        self.reports_widget = QWidget()
+        layout = QVBoxLayout(self.reports_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        title = QLabel("📊 Relatórios")
+        title.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
+        layout.addWidget(title)
+
+        lbl = QLabel("Aqui você poderá gerar relatórios financeiros e de clientes.")
+        lbl.setStyleSheet("color: #ccc; font-size: 16px; margin-top: 10px;")
+        layout.addWidget(lbl)
+
+        self._replace_main_content(self.reports_widget)
 
 
 # =====================================================================
