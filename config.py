@@ -44,7 +44,6 @@ def criar_tabelas_local():
     """)
 
     # 🔹 Tabela parcelas
-        # 🔹 Tabela parcelas (atualizada com novos campos)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS parcelas (
             id TEXT PRIMARY KEY,
@@ -63,6 +62,16 @@ def criar_tabelas_local():
         )
     """)
 
+    # 🔹 Tabela garantias
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS garantias (
+            id TEXT PRIMARY KEY,
+            id_cliente TEXT,
+            descricao TEXT,
+            valor TEXT,
+            id_usuario TEXT
+        )
+    """)
 
     conn.commit()
     conn.close()
@@ -76,7 +85,7 @@ def verificar_tabelas():
     conn = sqlite3.connect(get_local_db_path())
     cur = conn.cursor()
 
-    esperadas = ["clientes", "emprestimos", "parcelas"]
+    esperadas = ["clientes", "emprestimos", "parcelas", "garantias"]
 
     cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
     existentes = {row[0] for row in cur.fetchall()}
@@ -86,4 +95,3 @@ def verificar_tabelas():
 
     if faltando:
         raise RuntimeError(f"⚠ Banco local inválido! Tabelas ausentes: {faltando}")
-

@@ -10,6 +10,11 @@ from ui.parcelas_ui import ParcelasWindow
 from emprestimos import carregar_emprestimos
 from parcelas import carregar_parcelas_por_emprestimo
 
+from garantias import (
+    carregar_garantias, salvar_garantias,
+    adicionar_garantia, sincronizar_garantias_upload
+)
+
 class FinanceiroWindow(QWidget):
     """
     Tela financeira de um cliente.
@@ -337,7 +342,24 @@ class FinanceiroWindow(QWidget):
         container.addWidget(self.tabela_garantias)
 
         # 🔹 adiciona linha de total no final
+        # 🔹 carregar garantias reais do cliente
+        garantias_cliente = [g for g in carregar_garantias(self.parent().id_usuario) if g[1] == self.client_data[0]]
+        for idx, g in enumerate(garantias_cliente, start=1):
+            self.tabela_garantias.insertRow(self.tabela_garantias.rowCount())
+            num_item = QTableWidgetItem(str(idx))
+            num_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela_garantias.setItem(idx - 1, 0, num_item)
+
+            desc_item = QTableWidgetItem(g[2])
+            self.tabela_garantias.setItem(idx - 1, 1, desc_item)
+
+            val_item = QTableWidgetItem(g[3])
+            val_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.tabela_garantias.setItem(idx - 1, 2, val_item)
+
+
         self.add_totalizador()
+        self.atualizar_totalizador()
 
         self._set_content(frame)
 
@@ -346,7 +368,17 @@ class FinanceiroWindow(QWidget):
         from ui.garantias_ui import GarantiaForm
 
         def callback(data):
-            # número da garantia = total de linhas (menos 1 do totalizador) + 1
+            # 🔹 cria garantia no banco local e sincroniza
+            nova = adicionar_garantia(
+                id_cliente=self.client_data[0],
+                descricao=data["descricao"],
+                valor=data["valor"],
+                id_usuario=self.parent().id_usuario
+            )
+            salvar_garantias()
+            sincronizar_garantias_upload()
+
+            # adiciona na tabela (antes do totalizador)
             row = self.tabela_garantias.rowCount() - 1
             self.tabela_garantias.insertRow(row)
 
@@ -354,19 +386,18 @@ class FinanceiroWindow(QWidget):
             num_item.setTextAlignment(Qt.AlignCenter)
             self.tabela_garantias.setItem(row, 0, num_item)
 
-            desc_item = QTableWidgetItem(data["descricao"])
+            desc_item = QTableWidgetItem(nova[2])  # descrição que foi salva
             self.tabela_garantias.setItem(row, 1, desc_item)
 
-            val_item = QTableWidgetItem(data["valor"])
+            val_item = QTableWidgetItem(nova[3])   # valor que foi salvo
             val_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.tabela_garantias.setItem(row, 2, val_item)
 
-            # 🔹 atualiza o totalizador
             self.atualizar_totalizador()
-
 
         self.form_garantia = GarantiaForm(callback, parent=self)
         self.form_garantia.show()
+
     
     def add_totalizador(self):
         """Adiciona linha de totalizadores na tabela de garantias."""
@@ -414,14 +445,18 @@ class FinanceiroWindow(QWidget):
             # Atualiza a linha editada
             self.tabela_garantias.item(row, 1).setText(data["descricao"])
             self.tabela_garantias.item(row, 2).setText(data["valor"])
+
+            # 🔹 salvar no banco e sincronizar
+            salvar_garantias()
+            sincronizar_garantias_upload()
+
             self.atualizar_totalizador()
 
+        # 🔹 Abre o formulário preenchido com os dados atuais
         self.form_garantia = GarantiaForm(callback, parent=self)
-        # Preenche os campos iniciais do form
         self.form_garantia.inp_desc.setPlainText(desc)
         self.form_garantia.inp_valor.setText(val)
         self.form_garantia.show()
-
 
     def atualizar_totalizador(self):
         """Recalcula o total das garantias."""

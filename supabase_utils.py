@@ -39,7 +39,13 @@ TABELAS = {
             "valor_pago", "residual", "data_pagamento", "id_usuario"
         ],
         "chave": "id"
-    },    
+    },
+    "garantias": {
+        "local": "garantias",
+        "remota": "garantias",
+        "campos": ["id", "id_cliente", "descricao", "valor", "id_usuario"],
+        "chave": "id"
+    },
 }
 
 LOCAL_DB = "dados.db"
@@ -108,7 +114,7 @@ def enviar_tabela(nome, registros):
             print(f"⚠ Nenhum registro válido de {nome} para enviar.")
             return False
 
-        response = supabase.table(config["remota"]).upsert(
+        supabase.table(config["remota"]).upsert(
             registros_validos,
             on_conflict=[config["chave"]]
         ).execute()
@@ -159,6 +165,7 @@ def baixar_clientes(id_usuario):
 def enviar_clientes(registros):
     return enviar_tabela("clientes", registros)
 
+
 def baixar_emprestimos(id_usuario):
     """Baixa apenas os empréstimos do usuário informado."""
     try:
@@ -182,8 +189,10 @@ def baixar_emprestimos(id_usuario):
         print(f"⚠ Erro ao baixar emprestimos: {e}")
         return []
     
+
 def enviar_emprestimos(registros):
     return enviar_tabela("emprestimos", registros)
+
 
 def baixar_parcelas(id_usuario):
     """Baixa apenas as parcelas do usuário informado."""
@@ -208,8 +217,38 @@ def baixar_parcelas(id_usuario):
         print(f"⚠ Erro ao baixar parcelas: {e}")
         return []
     
+
 def enviar_parcelas(registros):
     return enviar_tabela("parcelas", registros)
+
+
+def baixar_garantias(id_usuario):
+    """Baixa apenas as garantias do usuário informado."""
+    try:
+        response = supabase.table("garantias").select("*").eq("id_usuario", id_usuario).execute()
+        data = response.data if hasattr(response, "data") else []
+
+        conn = sqlite3.connect(LOCAL_DB)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM garantias")
+        for item in data:
+            valores = [item.get(c, "") for c in TABELAS["garantias"]["campos"]]
+            placeholders = ", ".join(["?"] * len(valores))
+            cur.execute(f"""
+                INSERT INTO garantias ({', '.join(TABELAS["garantias"]["campos"])})
+                VALUES ({placeholders})
+            """, valores)
+        conn.commit()
+        conn.close()
+        return data
+    except Exception as e:
+        print(f"⚠ Erro ao baixar garantias: {e}")
+        return []
+
+
+def enviar_garantias(registros):
+    return enviar_tabela("garantias", registros)
+
 
 # ==========================
 # 🔹 USUÁRIOS (LOGIN)
@@ -232,7 +271,6 @@ def criar_usuario(nome, cpf, email, whatsapp, senha):
     except Exception as e:
         print(f"⚠ Erro ao criar usuário: {e}")
         return None
-
 
 
 def validar_login(email, senha):

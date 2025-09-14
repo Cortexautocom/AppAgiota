@@ -42,6 +42,11 @@ from parcelas import (
     sincronizar_parcelas_download, sincronizar_parcelas_upload
 )
 
+from garantias import (
+    garantias, carregar_garantias, salvar_garantias,
+    sincronizar_garantias_download, sincronizar_garantias_upload
+)
+
 def resource_path(relative_path):
     """Obtém o caminho do recurso (funciona no .exe e no modo normal)."""
     try:
@@ -93,6 +98,7 @@ class ModernWindow(QMainWindow):
         self.clients = clientes
         self.emprestimos = emprestimos
         self.parcelas = parcelas
+        self.garantias = garantias
 
         # 🔹 Carrega dados do banco local na inicialização
         self.load_local_db()
@@ -711,7 +717,8 @@ class ModernWindow(QMainWindow):
         try:
             self.clients = carregar_clientes(self.id_usuario)
             self.emprestimos = carregar_emprestimos(self.id_usuario)  
-            self.parcelas = carregar_parcelas(self.id_usuario)        
+            self.parcelas = carregar_parcelas(self.id_usuario)
+            self.garantias = carregar_garantias(self.id_usuario)       
         except Exception as e:
             print(f"⚠ Erro ao carregar banco local: {e}")
 
@@ -722,7 +729,8 @@ class ModernWindow(QMainWindow):
         try:
             salvar_clientes(self.clients)
             salvar_emprestimos()
-            salvar_parcelas()            
+            salvar_parcelas()
+            salvar_garantias()         
             
         except Exception as e:
             print(f"⚠ Erro ao salvar no banco local: {e}")
@@ -807,6 +815,7 @@ class ModernWindow(QMainWindow):
             sincronizar_clientes_download(self.id_usuario)
             sincronizar_emprestimos_download(self.id_usuario)
             sincronizar_parcelas_download(self.id_usuario)
+            sincronizar_garantias_download(self.id_usuario)
             
             self.load_local_db()
             self.show_search_screen()
@@ -840,6 +849,7 @@ class ModernWindow(QMainWindow):
             sincronizar_clientes_upload()
             sincronizar_emprestimos_upload()
             sincronizar_parcelas_upload()
+            sincronizar_garantias_upload()
             
             QTimer.singleShot(
                 2000,
