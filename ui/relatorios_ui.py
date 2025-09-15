@@ -171,21 +171,33 @@ class RelatoriosWindow(QWidget):
 
         # ===== Novo Combo: Modo de relatório =====
         self.cb_modo = QComboBox()
-        self.cb_modo.addItems(["Consolidado", "Detalhado"])
-        self.cb_modo.setCurrentIndex(0)  # começa em Consolidado
+        self.cb_modo.addItems(["Por cliente", "Por parcela"])
+        self.cb_modo.setCurrentIndex(0)  # começa em "Por cliente"
         self.cb_modo.setStyleSheet(self.cb_tipo.styleSheet())
+        
+        # 1 - Mostrar
+        filtro_layout.addWidget(QLabel("Mostrar:"))
+        filtro_layout.addWidget(self.cb_tipo)
 
-        # Adicionando widgets na ordem pedida
+        # 2 - Relatório
+        filtro_layout.addWidget(QLabel("Relatório:"))
+        filtro_layout.addWidget(self.cb_modo)
+
+        # 3 - Datas
         filtro_layout.addWidget(QLabel("Data Inicial:"))
         filtro_layout.addWidget(self.data_inicial)
         filtro_layout.addWidget(QLabel("Data Final:"))
         filtro_layout.addWidget(self.data_final)
-        filtro_layout.addWidget(QLabel("Mostrar:"))
-        filtro_layout.addWidget(self.cb_tipo)
-        filtro_layout.addWidget(QLabel("Relatório:"))
-        filtro_layout.addWidget(self.cb_modo)
+
+        # 4 - Botão
         filtro_layout.addStretch()
         filtro_layout.addWidget(btn_filtrar)
+
+        
+        # 🔹 Largura fixa para alinhar
+        self.cb_tipo.setFixedWidth(110)
+        self.cb_modo.setFixedWidth(110)
+
 
         layout.addLayout(filtro_layout)
 
@@ -347,7 +359,7 @@ class RelatoriosWindow(QWidget):
                 })
 
         # gerar tabela conforme modo
-        if modo == "Detalhado":
+        if modo == "Por parcela":
             for linha in linhas:
                 row = self.tabela_previsao.rowCount()
                 self.tabela_previsao.insertRow(row)
@@ -364,7 +376,7 @@ class RelatoriosWindow(QWidget):
                 else:
                     self.tabela_previsao.setItem(row, 3, QTableWidgetItem(""))
 
-        else:  # Consolidado
+        else:  # Por cliente
             consol = {}
             for linha in linhas:
                 key = linha["cliente"]
