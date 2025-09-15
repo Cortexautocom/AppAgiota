@@ -11,7 +11,7 @@ class ArquivadosWindow(QWidget):
         self.id_usuario = id_usuario
         self.setWindowTitle(f"Empréstimos Arquivados - {client_data[1]}")
         self.setStyleSheet("background-color: #1c2331; color: white;")
-        self.setFixedSize(900, 600)
+        #self.setMinimumSize(600, 400)
 
         layout = QVBoxLayout(self)
 
@@ -21,7 +21,6 @@ class ArquivadosWindow(QWidget):
             "ID", "Data inicial", "Último venc.", "Valor", "Parcelas", "Juros", "Taxa"
         ])
         self.tabela.setColumnHidden(0, True)  # esconde ID
-        self.tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.tabela.setSelectionMode(QAbstractItemView.NoSelection)
         self.tabela.setStyleSheet("""
             QTableWidget {
@@ -33,6 +32,11 @@ class ArquivadosWindow(QWidget):
                 padding: 6px; border: none;
             }
         """)
+
+        # 🔹 Deixa todas as colunas compartilhando igualmente o espaço
+        header = self.tabela.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
+
 
         layout.addWidget(self.tabela)
 
@@ -70,16 +74,22 @@ class ArquivadosWindow(QWidget):
             self.tabela.setItem(linha, 3, item_valor)
 
             # Parcelas
-            self.tabela.setItem(linha, 4, QTableWidgetItem(str(emp[4])))
+            item_parcelas = QTableWidgetItem(str(emp[4]))
+            item_parcelas.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(linha, 4, item_parcelas)
 
             # Juros
-            self.tabela.setItem(linha, 5, QTableWidgetItem(emp[6]))
+            item_juros = QTableWidgetItem(emp[6])
+            item_juros.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(linha, 5, item_juros)
 
             # Taxa
             taxa_txt = emp[5] or ""
             if taxa_txt.lower().startswith("taxa "):
                 taxa_txt = taxa_txt[5:]
-            self.tabela.setItem(linha, 6, QTableWidgetItem(taxa_txt))
+            item_taxa = QTableWidgetItem(taxa_txt)
+            item_taxa.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(linha, 6, item_taxa)
 
     def abrir_parcelas(self, row, col):
         emp_id = self.tabela.item(row, 0).text()
