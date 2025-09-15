@@ -39,7 +39,8 @@ def criar_tabelas_local():
             observacao TEXT,
             juros TEXT,
             prestacao TEXT,
-            id_usuario TEXT
+            id_usuario TEXT,
+            ativo TEXT DEFAULT 'sim'
         )
     """)
 

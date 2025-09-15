@@ -27,7 +27,8 @@ TABELAS = {
     "emprestimos": {
         "local": "emprestimos",
         "remota": "emprestimos",
-        "campos": ["id", "id_cliente", "valor", "data_inicio", "parcelas", "observacao", "juros", "prestacao", "id_usuario"],
+        "campos": ["id", "id_cliente", "valor", "data_inicio", "parcelas",
+                "observacao", "juros", "prestacao", "id_usuario", "ativo"],
         "chave": "id"
     },
     "parcelas": {

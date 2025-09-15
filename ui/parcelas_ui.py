@@ -14,13 +14,15 @@ from parcelas import carregar_parcelas_por_emprestimo
 
 class ParcelasWindow(QWidget):
     """Janela para visualizar/editar parcelas de um empréstimo."""
-    def __init__(self, emprestimo, id_usuario, parent=None, on_save_callback=None):
+    def __init__(self, emprestimo, id_usuario, parent=None, on_save_callback=None, readonly=False):
         super().__init__(parent)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
         self.emprestimo = emprestimo
         self.id_usuario = id_usuario
         self.on_save_callback = on_save_callback
         self.linhas_zeradas = set()
+        self.readonly = readonly
+
 
         self.setWindowTitle(f"Parcelas - Empréstimo de {emprestimo.get('data_inicio', '')} - {emprestimo.get('cliente', '')}")
         self.setFixedSize(1150, 550)
@@ -35,7 +37,8 @@ class ParcelasWindow(QWidget):
 
         # 🔹 Linha extra com capital, juros, nº de parcelas e botão ➕
         capital_txt = self._fmt(float(emprestimo.get("capital", 0)))
-        juros_txt = self._fmt(float(emprestimo.get("juros", 0)))
+        juros_valor = emprestimo.get("juros", 0) or 0
+        juros_txt = self._fmt(float(juros_valor))
         parcelas_txt = emprestimo.get("meses", "0")
 
         info_layout = QHBoxLayout()
@@ -48,21 +51,23 @@ class ParcelasWindow(QWidget):
         )
         lbl_info.setStyleSheet("font-size: 14px; color: #cccccc; margin-bottom: 8px;")
 
-        btn_add_parcela = QPushButton("➕ Nova Parcela")
-        btn_add_parcela.setStyleSheet("""
-            QPushButton {
-                background-color:#27ae60; color:white;
-                padding:4px 10px; border-radius:6px; font-weight:bold;
-            }
-            QPushButton:hover { background-color:#2ecc71; }
-        """)
-        btn_add_parcela.clicked.connect(self.adicionar_parcela)
-
         info_layout.addWidget(lbl_info)
         info_layout.addStretch()
-        info_layout.addWidget(btn_add_parcela)
+
+        if not self.readonly:
+            btn_add_parcela = QPushButton("➕ Nova Parcela")
+            btn_add_parcela.setStyleSheet("""
+                QPushButton {
+                    background-color:#27ae60; color:white;
+                    padding:4px 10px; border-radius:6px; font-weight:bold;
+                }
+                QPushButton:hover { background-color:#2ecc71; }
+            """)
+            btn_add_parcela.clicked.connect(self.adicionar_parcela)
+            info_layout.addWidget(btn_add_parcela)
 
         layout.addLayout(info_layout)
+
 
         # 🔹 Criação da tabela
         self.tabela = QTableWidget(0, 12)
@@ -71,6 +76,8 @@ class ParcelasWindow(QWidget):
             "Calc.", "Pg. Principal", "Pg. Juros",
             "Valor Pago", "Saldo", "Data do Pag.", "Zerar"
         ])
+        if self.readonly:
+            self.tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
 
         # Aparência da tabela
         header = self.tabela.horizontalHeader()
@@ -154,22 +161,25 @@ class ParcelasWindow(QWidget):
             item_desc.setForeground(QColor("#ffaeae"))
             self.tabela.setItem(linha, 4, item_desc)
 
-            # Botão de cálculo
-            btn_calc = QPushButton("⚡")
-            btn_calc.setStyleSheet("""
-                QPushButton {
-                    background-color: transparent;
-                    color: #3498db;
-                    border: none;
-                    font-size: 16px;
-                }
-                QPushButton:hover {
-                    color: #5dade2;  /* tom mais claro ao passar o mouse */
-                }
-            """)
-            print(f"[DEBUG] Criando botão de cálculo na linha {linha}")
-            btn_calc.clicked.connect(self.handle_calc_click)
-            self.tabela.setCellWidget(linha, 5, btn_calc)
+            if not self.readonly:
+                # Botão de cálculo
+                btn_calc = QPushButton("⚡")
+                btn_calc.setStyleSheet("""
+                    QPushButton {
+                        background-color: transparent;
+                        color: #3498db;
+                        border: none;
+                        font-size: 16px;
+                    }
+                    QPushButton:hover {
+                        color: #5dade2;  /* tom mais claro ao passar o mouse */
+                    }
+                """)
+                print(f"[DEBUG] Criando botão de cálculo na linha {linha}")
+                btn_calc.clicked.connect(self.handle_calc_click)
+                self.tabela.setCellWidget(linha, 5, btn_calc)
+            else:
+                self.tabela.setCellWidget(linha, 5, QLabel(""))  # ocupa o espaço
 
             # Pg. Principal
             item_pg_principal = QTableWidgetItem(pg_principal or "")
@@ -206,22 +216,24 @@ class ParcelasWindow(QWidget):
             edit_data.setAlignment(Qt.AlignCenter)
             self.tabela.setCellWidget(linha, 10, edit_data)
 
-            # Botão de zerar saldo
-            btn_zerar = QPushButton("✂️")
-            btn_zerar.setStyleSheet("""
-                QPushButton {
-                    background-color: transparent;
-                    color: #e74c3c;
-                    border: none;
-                    font-size: 16px;
-                }
-                QPushButton:hover {
-                    color: #ff6b6b;
-                }
-            """)
-            btn_zerar.clicked.connect(self.handle_zerar_click)
-            self.tabela.setCellWidget(linha, 11, btn_zerar)
-
+            if not self.readonly:
+                # Botão de zerar saldo
+                btn_zerar = QPushButton("✂️")
+                btn_zerar.setStyleSheet("""
+                    QPushButton {
+                        background-color: transparent;
+                        color: #e74c3c;
+                        border: none;
+                        font-size: 16px;
+                    }
+                    QPushButton:hover {
+                        color: #ff6b6b;
+                    }
+                """)
+                btn_zerar.clicked.connect(self.handle_zerar_click)
+                self.tabela.setCellWidget(linha, 11, btn_zerar)
+            else:
+                self.tabela.setCellWidget(linha, 11, QLabel(""))
 
         # 🔹 Calcula saldo inicial de cada linha
         for row in range(self.tabela.rowCount()):
@@ -247,16 +259,39 @@ class ParcelasWindow(QWidget):
         self.adicionar_totalizadores(fonte_negrito)
         self.tabela.itemChanged.connect(self.formatar_valores)
 
-        btn_salvar = QPushButton("💾 Salvar Parcelas")
-        btn_salvar.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60; color: white;
-                padding: 8px; border-radius: 6px; font-weight: bold;
-            }
-            QPushButton:hover { background-color: #2ecc71; }
-        """)
-        btn_salvar.clicked.connect(self.salvar_modificacoes)
-        layout.addWidget(btn_salvar, alignment=Qt.AlignCenter)
+        # 🔹 Linha com os botões Salvar e Arquivar
+        if not self.readonly:
+            # 🔹 Linha com os botões Salvar e Arquivar
+            btns_layout = QHBoxLayout()
+
+            # Botão salvar
+            btn_salvar = QPushButton("💾 Salvar Parcelas")
+            btn_salvar.setStyleSheet("""
+                QPushButton {
+                    background-color: #27ae60; color: white;
+                    padding: 8px; border-radius: 6px; font-weight: bold;
+                }
+                QPushButton:hover { background-color: #2ecc71; }
+            """)
+            btn_salvar.clicked.connect(self.salvar_modificacoes)
+            btns_layout.addWidget(btn_salvar, alignment=Qt.AlignLeft)
+
+            btns_layout.addStretch()
+
+            # Botão arquivar
+            btn_arquivar = QPushButton("🗑 Arquivar Empréstimo")
+            btn_arquivar.setStyleSheet("""
+                QPushButton {
+                    background-color: #e74c3c; color: white;
+                    padding: 8px; border-radius: 6px; font-weight: bold;
+                }
+                QPushButton:hover { background-color: #c0392b; }
+            """)
+            btn_arquivar.clicked.connect(self.arquivar_emprestimo)
+            btns_layout.addWidget(btn_arquivar, alignment=Qt.AlignRight)
+
+            layout.addLayout(btns_layout)
+
 
         self.atualizar_totalizadores()
     
@@ -575,13 +610,21 @@ class ParcelasWindow(QWidget):
         # Data do Pag. (QLineEdit com validador de data)
         from PySide6.QtGui import QRegularExpressionValidator
         from PySide6.QtCore import QRegularExpression
+
         edit_data = QLineEdit()
         edit_data.setPlaceholderText("dd/mm/aaaa")
+
         regex = QRegularExpression(r"^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4}$")
         validator = QRegularExpressionValidator(regex, edit_data)
         edit_data.setValidator(validator)
         edit_data.setAlignment(Qt.AlignCenter)
+
+        if self.readonly:
+            edit_data.setReadOnly(True)
+            edit_data.setStyleSheet("background-color: #3a455b; color: #aaa;")  # cinza desativado
+
         self.tabela.setCellWidget(nova_linha, 10, edit_data)
+
 
         # Botão Zerar
         btn_zerar = QPushButton("⚡")
@@ -590,3 +633,32 @@ class ParcelasWindow(QWidget):
         self.tabela.setCellWidget(nova_linha, 11, btn_zerar)
 
         print(f"[DEBUG] Nova parcela adicionada: Nº {numero}, valor={valor_fmt}, vencimento={novo_venc}")
+
+    def arquivar_emprestimo(self):
+        """Arquiva o empréstimo atual e fecha a janela."""
+        from emprestimos import arquivar_emprestimo
+        from PySide6.QtWidgets import QMessageBox
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Confirmação")
+        msg_box.setText(
+            "Tem certeza que deseja arquivar este empréstimo?\n\n"
+            "Ele não aparecerá mais nos relatórios ou no financeiro, e também não poderá ser reativado, "
+            "mas poderá ser consultado no menu \"Empréstimos Arquivados\"."
+        )
+        msg_box.setIcon(QMessageBox.Question)
+        msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
+
+        # Personaliza os textos dos botões
+        msg_box.button(QMessageBox.Yes).setText("Sim")
+        msg_box.button(QMessageBox.Cancel).setText("Cancelar")
+
+        reply = msg_box.exec()
+
+        if reply == QMessageBox.Yes:
+            arquivar_emprestimo(self.emprestimo["id"])
+            QMessageBox.information(self, "Arquivado", "Empréstimo arquivado com sucesso!")
+            if self.on_save_callback:
+                self.on_save_callback()
+            self.close()
+

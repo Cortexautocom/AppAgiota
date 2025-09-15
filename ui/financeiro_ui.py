@@ -71,6 +71,22 @@ class FinanceiroWindow(QWidget):
         self.btn_garantias.clicked.connect(self.show_garantias)
         menu_layout.addWidget(self.btn_garantias)
 
+        self.btn_arquivados = QPushButton("📂 Empréstimos Arquivados")
+        self.btn_arquivados.setStyleSheet("""
+            QPushButton {
+                background: none; color: white;
+                padding: 12px; text-align: left;
+                font-size: 15px; border: none;
+            }
+            QPushButton:hover {
+                background-color: #374157;
+                border-radius: 5px;
+            }
+        """)
+        self.btn_arquivados.clicked.connect(self.show_arquivados)
+        menu_layout.addWidget(self.btn_arquivados)
+
+
         menu_layout.addStretch()
         main_layout.addWidget(menu)
 
@@ -475,3 +491,13 @@ class FinanceiroWindow(QWidget):
 
         total_fmt = f"R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         self.tabela_garantias.item(row_count - 1, 2).setText(total_fmt)
+
+    def show_arquivados(self):
+        from ui.arquivados_ui import ArquivadosWindow
+        self.arquivados_window = ArquivadosWindow(
+            self.client_data,
+            id_usuario=self.parent().id_usuario,  # ✅ aqui vem do ModernWindow
+            parent=self
+        )
+        self._set_content(self.arquivados_window)
+
