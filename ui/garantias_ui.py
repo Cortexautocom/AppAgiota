@@ -63,6 +63,7 @@ class GarantiaForm(QWidget):
         self.inp_valor.setStyleSheet("background-color: #2c3446; color: white; padding: 6px; border-radius: 6px;")
         layout.addWidget(QLabel("Valor"))
         layout.addWidget(self.inp_valor)
+        self.inp_valor.textChanged.connect(lambda: self.formatar_moeda(self.inp_valor))
 
         # Espaço entre valor e botão
         layout.addSpacerItem(QSpacerItem(20, 15, QSizePolicy.Minimum, QSizePolicy.Fixed))
@@ -103,3 +104,18 @@ class GarantiaForm(QWidget):
         # Retorna pro FinanceiroWindow
         self.parent_callback({"descricao": desc, "valor": valor_fmt})
         self.close()
+
+
+    def formatar_moeda(self, campo):
+        texto = campo.text().replace("R$", "").replace(".", "").replace(",", "").strip()
+        if not texto.isdigit():
+            campo.blockSignals(True)
+            campo.setText("")
+            campo.blockSignals(False)
+            return
+
+        valor = int(texto) / 100
+        campo.blockSignals(True)
+        campo.setText(f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        campo.blockSignals(False)
+        campo.setCursorPosition(len(campo.text()))

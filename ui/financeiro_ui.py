@@ -12,7 +12,7 @@ from parcelas import carregar_parcelas_por_emprestimo
 
 from garantias import (
     carregar_garantias, salvar_garantias,
-    adicionar_garantia, sincronizar_garantias_upload
+    adicionar_garantia, sincronizar_garantias_upload, excluir_garantia
 )
 
 class FinanceiroWindow(QWidget):
@@ -213,7 +213,7 @@ class FinanceiroWindow(QWidget):
             status = "Em andamento"
             item_status = QTableWidgetItem(status)
             item_status.setFlags(item_status.flags() & ~Qt.ItemIsEditable)
-            item_status.setForeground(Qt.yellow)
+            item_status.setForeground(Qt.green)
             item_status.setTextAlignment(Qt.AlignCenter)
             tabela.setItem(linha, 7, item_status)
 
@@ -319,10 +319,10 @@ class FinanceiroWindow(QWidget):
         container.addWidget(btn_nova, alignment=Qt.AlignLeft)
 
         # Tabela de garantias
-        self.tabela_garantias = QTableWidget(0, 3)
+        self.tabela_garantias = QTableWidget(0, 4)
         self.tabela_garantias.cellDoubleClicked.connect(self.editar_garantia)
         self.tabela_garantias.setSelectionMode(QAbstractItemView.NoSelection)
-        self.tabela_garantias.setHorizontalHeaderLabels(["Nº", "Descrição e detalhes da garantia", "Valor"])
+        self.tabela_garantias.setHorizontalHeaderLabels(["Nº", "Descrição e detalhes da garantia", "Valor", "Excluir"])
 
         header = self.tabela_garantias.horizontalHeader()
         header.setStyleSheet("""
@@ -343,9 +343,12 @@ class FinanceiroWindow(QWidget):
         header.setSectionResizeMode(2, QHeaderView.Fixed)
         self.tabela_garantias.setColumnWidth(2, 150)
 
+        header.setSectionResizeMode(3, QHeaderView.Fixed)
+        self.tabela_garantias.setColumnWidth(3, 60)
+
         # Estilo                
         self.tabela_garantias.verticalHeader().setVisible(False)
-        self.tabela_garantias.setSelectionMode(QAbstractItemView.NoSelection)  # remove seleção rosa
+        self.tabela_garantias.setSelectionMode(QAbstractItemView.NoSelection)
         self.tabela_garantias.setStyleSheet("""
             QTableWidget {
                 background-color: #2c3446; color: white;
@@ -357,34 +360,84 @@ class FinanceiroWindow(QWidget):
 
         container.addWidget(self.tabela_garantias)
 
-        # 🔹 adiciona linha de total no final
         # 🔹 carregar garantias reais do cliente
         garantias_cliente = [g for g in carregar_garantias(self.parent().id_usuario) if g[1] == self.client_data[0]]
         for idx, g in enumerate(garantias_cliente, start=1):
-            self.tabela_garantias.insertRow(self.tabela_garantias.rowCount())
+            row_atual = self.tabela_garantias.rowCount()
+            self.tabela_garantias.insertRow(row_atual)
+
+            # Nº
             num_item = QTableWidgetItem(str(idx))
             num_item.setTextAlignment(Qt.AlignCenter)
-            self.tabela_garantias.setItem(idx - 1, 0, num_item)
+            self.tabela_garantias.setItem(row_atual, 0, num_item)
 
+            # Descrição
             desc_item = QTableWidgetItem(g[2])
-            self.tabela_garantias.setItem(idx - 1, 1, desc_item)
+            self.tabela_garantias.setItem(row_atual, 1, desc_item)
 
+            # Valor
             val_item = QTableWidgetItem(g[3])
-            val_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.tabela_garantias.setItem(idx - 1, 2, val_item)
+            val_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela_garantias.setItem(row_atual, 2, val_item)
 
+            # Botão excluir
+            btn_excluir = QPushButton("🗑")
+            btn_excluir.setToolTip("Excluir garantia")
+            btn_excluir.setFixedSize(28, 28)
+            btn_excluir.setStyleSheet("""
+                QPushButton {
+                    background: none; color: #e74c3c;
+                    border: none; font-size: 16px;
+                }
+                QPushButton:hover {
+                    background-color: #3a455b;
+                    border-radius: 6px;
+                }
+            """)
+            garantia_id = g[0]
+            btn_excluir.clicked.connect(lambda _, r=row_atual, gid=garantia_id: self.excluir_garantia(r, gid))
+
+            widget_excluir = QWidget()
+            lay_excluir = QHBoxLayout(widget_excluir)
+            lay_excluir.setContentsMargins(0, 0, 0, 0)
+            lay_excluir.addStretch()
+            lay_excluir.addWidget(btn_excluir)
+            lay_excluir.addStretch()
+
+            self.tabela_garantias.setCellWidget(row_atual, 3, widget_excluir)
 
         self.add_totalizador()
         self.atualizar_totalizador()
 
         self._set_content(frame)
 
+    def excluir_garantia(self, row, garantia_id):
+        from PySide6.QtWidgets import QMessageBox
+        from garantias import excluir_garantia as excluir_garantia_db
+
+        reply = QMessageBox.question(
+            self,
+            "Confirmação",
+            "Tem certeza que deseja excluir esta garantia?",
+            QMessageBox.Yes | QMessageBox.Cancel
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        # 🔹 Exclui do banco local + Supabase
+        excluir_garantia_db(garantia_id)
+
+        # 🔹 Remove da tabela
+        self.tabela_garantias.removeRow(row)
+
+        # 🔹 Atualiza totalizador
+        self.atualizar_totalizador()
+
 
     def open_nova_garantia(self):
         from ui.garantias_ui import GarantiaForm
 
         def callback(data):
-            # 🔹 cria garantia no banco local e sincroniza
             nova = adicionar_garantia(
                 id_cliente=self.client_data[0],
                 descricao=data["descricao"],
@@ -394,7 +447,6 @@ class FinanceiroWindow(QWidget):
             salvar_garantias()
             sincronizar_garantias_upload()
 
-            # adiciona na tabela (antes do totalizador)
             row = self.tabela_garantias.rowCount() - 1
             self.tabela_garantias.insertRow(row)
 
@@ -402,17 +454,44 @@ class FinanceiroWindow(QWidget):
             num_item.setTextAlignment(Qt.AlignCenter)
             self.tabela_garantias.setItem(row, 0, num_item)
 
-            desc_item = QTableWidgetItem(nova[2])  # descrição que foi salva
+            desc_item = QTableWidgetItem(nova[2])
             self.tabela_garantias.setItem(row, 1, desc_item)
 
-            val_item = QTableWidgetItem(nova[3])   # valor que foi salvo
-            val_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            val_item = QTableWidgetItem(nova[3])
+            val_item.setTextAlignment(Qt.AlignCenter)
             self.tabela_garantias.setItem(row, 2, val_item)
+
+            # Botão excluir
+            btn_excluir = QPushButton("🗑")
+            btn_excluir.setToolTip("Excluir garantia")
+            btn_excluir.setFixedSize(28, 28)
+            btn_excluir.setStyleSheet("""
+                QPushButton {
+                    background: none; color: #e74c3c;
+                    border: none; font-size: 16px;
+                }
+                QPushButton:hover {
+                    background-color: #3a455b;
+                    border-radius: 6px;
+                }
+            """)
+            garantia_id = nova[0]
+            btn_excluir.clicked.connect(lambda _, r=row, gid=garantia_id: self.excluir_garantia(r, gid))
+
+            widget_excluir = QWidget()
+            lay_excluir = QHBoxLayout(widget_excluir)
+            lay_excluir.setContentsMargins(0, 0, 0, 0)
+            lay_excluir.addStretch()
+            lay_excluir.addWidget(btn_excluir)
+            lay_excluir.addStretch()
+
+            self.tabela_garantias.setCellWidget(row, 3, widget_excluir)
 
             self.atualizar_totalizador()
 
         self.form_garantia = GarantiaForm(callback, parent=self)
         self.form_garantia.show()
+
 
     
     def add_totalizador(self):
@@ -456,16 +535,55 @@ class FinanceiroWindow(QWidget):
         val = self.tabela_garantias.item(row, 2).text()
 
         from ui.garantias_ui import GarantiaForm
+        from garantias import garantias, salvar_garantias, sincronizar_garantias_upload
+
+        # Descobre o id da garantia correspondente à linha
+        garantia_id = None
+        if row < len(garantias):
+            garantia_id = garantias[row][0]
 
         def callback(data):
-            # Atualiza a linha editada
+            # Atualiza a linha editada na tabela
             self.tabela_garantias.item(row, 1).setText(data["descricao"])
             self.tabela_garantias.item(row, 2).setText(data["valor"])
+
+            # Atualiza na lista em memória também
+            if garantia_id:
+                for i, g in enumerate(garantias):
+                    if g[0] == garantia_id:
+                        garantias[i] = (g[0], g[1], data["descricao"], data["valor"], g[4])
+                        break
 
             # 🔹 salvar no banco e sincronizar
             salvar_garantias()
             sincronizar_garantias_upload()
 
+            # Recria o botão excluir para garantir que continua funcionando
+            btn_excluir = QPushButton("🗑")
+            btn_excluir.setToolTip("Excluir garantia")
+            btn_excluir.setFixedSize(28, 28)
+            btn_excluir.setStyleSheet("""
+                QPushButton {
+                    background: none; color: #e74c3c;
+                    border: none; font-size: 16px;
+                }
+                QPushButton:hover {
+                    background-color: #3a455b;
+                    border-radius: 6px;
+                }
+            """)
+            btn_excluir.clicked.connect(lambda _, r=row, gid=garantia_id: self.excluir_garantia(r, gid))
+
+            widget_excluir = QWidget()
+            lay_excluir = QHBoxLayout(widget_excluir)
+            lay_excluir.setContentsMargins(0, 0, 0, 0)
+            lay_excluir.addStretch()
+            lay_excluir.addWidget(btn_excluir)
+            lay_excluir.addStretch()
+
+            self.tabela_garantias.setCellWidget(row, 3, widget_excluir)
+
+            # Atualiza o totalizador
             self.atualizar_totalizador()
 
         # 🔹 Abre o formulário preenchido com os dados atuais
@@ -473,6 +591,7 @@ class FinanceiroWindow(QWidget):
         self.form_garantia.inp_desc.setPlainText(desc)
         self.form_garantia.inp_valor.setText(val)
         self.form_garantia.show()
+
 
     def atualizar_totalizador(self):
         """Recalcula o total das garantias."""

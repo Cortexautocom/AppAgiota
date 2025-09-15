@@ -298,7 +298,8 @@ class EmprestimoForm(QWidget):
             f"Taxa {dados['taxa']*100:.2f}%",
             str(dados["total_juros"]),
             str(dados["prestacao"]),
-            id_usuario
+            id_usuario,
+            "sim"  # ✅ empréstimo novo sempre começa como ativo
         )
         
         # 🔹 Salva localmente

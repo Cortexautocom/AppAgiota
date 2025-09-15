@@ -930,8 +930,6 @@ class SaveWorker(QRunnable):
 # =====================================================================
 # Execução principal
 # =====================================================================
-from ui.login_ui import LoginWindow
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")

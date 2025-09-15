@@ -71,3 +71,26 @@ def sincronizar_garantias_download(id_usuario):
 def sincronizar_garantias_upload():
     global garantias
     enviar_garantias(garantias)
+
+def excluir_garantia(id_garantia):
+    """Exclui uma garantia do SQLite e do Supabase"""
+    import sqlite3
+    from config import get_local_db_path
+    from supabase_utils import supabase
+
+    # Excluir do banco local
+    conn = sqlite3.connect(get_local_db_path())
+    cur = conn.cursor()
+    cur.execute("DELETE FROM garantias WHERE id = ?", (id_garantia,))
+    conn.commit()
+    conn.close()
+
+    # Excluir do Supabase
+    try:
+        supabase.table("garantias").delete().eq("id", id_garantia).execute()
+    except Exception as e:
+        print(f"⚠ Erro ao excluir garantia no Supabase: {e}")
+
+    # Atualizar lista em memória
+    global garantias
+    garantias = [g for g in garantias if g[0] != id_garantia]

@@ -52,6 +52,13 @@ class ArquivadosWindow(QWidget):
         for linha, emp in enumerate(arquivados):
             self.tabela.insertRow(linha)
 
+            def _fmt_br(valor):
+                try:
+                    valor_float = float(str(valor).replace(",", "."))
+                    return f"R$ {valor_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                except (ValueError, TypeError):
+                    return str(valor) if valor else ""    
+
             # ID oculto
             self.tabela.setItem(linha, 0, QTableWidgetItem(emp[0]))
 
@@ -69,7 +76,8 @@ class ArquivadosWindow(QWidget):
             self.tabela.setItem(linha, 2, item_ultimo)
 
             # Valor
-            item_valor = QTableWidgetItem(emp[2])
+            valor_fmt = _fmt_br(emp[2])
+            item_valor = QTableWidgetItem(valor_fmt)
             item_valor.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(linha, 3, item_valor)
 
@@ -79,8 +87,10 @@ class ArquivadosWindow(QWidget):
             self.tabela.setItem(linha, 4, item_parcelas)
 
             # Juros
-            item_juros = QTableWidgetItem(emp[6])
+            juros_fmt = _fmt_br(emp[6])
+            item_juros = QTableWidgetItem(juros_fmt)
             item_juros.setTextAlignment(Qt.AlignCenter)
+            #item_juros.setForeground(Qt.yellow)  # opcional: destacar juros
             self.tabela.setItem(linha, 5, item_juros)
 
             # Taxa
