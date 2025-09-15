@@ -71,16 +71,35 @@ class RelatoriosWindow(QWidget):
         # Linha de filtros (datas + combos + botão)
         filtro_layout = QHBoxLayout()
 
-        # ===== Data Inicial =====
+        # ===== Data Inicial =====        
+
         self.data_inicial = QDateEdit()
         self.data_inicial.setDate(QDate.currentDate())
         self.data_inicial.setDisplayFormat("dd/MM/yyyy")
         self.data_inicial.setCalendarPopup(True)
+        self.data_inicial.setStyleSheet("""
+            QDateEdit {
+                background-color:#2c3446;
+                color:white;
+                padding:6px;
+                border-radius:6px;
+                selection-background-color:#3498db;
+                selection-color:white;
+            }
+            QAbstractSpinBox {
+                background-color:#2c3446;
+                color:white;
+                border-radius:6px;
+                padding:6px;
+                selection-background-color:#3498db;
+                selection-color:white;
+            }
+        """)
 
-        # 🔹 Criar calendário customizado para Data Inicial
-        cal_inicial = QCalendarWidget()
-        cal_inicial.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)  # 🔹 remove coluna da semana
-        cal_inicial.setStyleSheet("""
+        # 🔹 Aplicar calendário customizado (sem coluna de semanas)
+        cal_inicio = QCalendarWidget()
+        cal_inicio.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
+        cal_inicio.setStyleSheet("""
             QCalendarWidget QWidget {
                 background-color: #1c2331;
                 color: white;
@@ -106,18 +125,70 @@ class RelatoriosWindow(QWidget):
                 border: none;
             }
         """)
-        self.data_inicial.setCalendarWidget(cal_inicial)
+        self.data_inicial.setCalendarWidget(cal_inicio)
 
-        # ===== Data Final =====
+
+        # ===== Data Final =====    
+
         self.data_final = QDateEdit()
         self.data_final.setDate(QDate.currentDate())
         self.data_final.setDisplayFormat("dd/MM/yyyy")
         self.data_final.setCalendarPopup(True)
+        self.data_final.setStyleSheet("""
+            QDateEdit {
+                background-color:#2c3446;
+                color:white;
+                padding:6px;
+                border-radius:6px;
+                selection-background-color:#3498db;
+                selection-color:white;
+            }
+            QAbstractSpinBox {
+                background-color:#2c3446;
+                color:white;
+                border-radius:6px;
+                padding:6px;
+                selection-background-color:#3498db;
+                selection-color:white;
+            }
+        """)
+
+        # 🔹 Aplicar calendário customizado (sem coluna de semanas)
+        cal_fim = QCalendarWidget()
+        cal_fim.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
+        cal_fim.setStyleSheet("""
+            QCalendarWidget QWidget {
+                background-color: #1c2331;
+                color: white;
+            }
+            QCalendarWidget QAbstractItemView:enabled {
+                background-color: #1c2331;
+                color: white;
+                selection-background-color: #3498db;
+                selection-color: white;
+            }
+            QCalendarWidget QAbstractItemView:disabled {
+                color: #555;
+            }
+            QCalendarWidget QTableView {
+                background-color: #1c2331;
+                alternate-background-color: #1c2331;
+                selection-background-color: #3498db;
+                selection-color: white;
+            }
+            QCalendarWidget QTableView QHeaderView::section {
+                background-color: #1c2331;
+                color: #9fb0c7;
+                border: none;
+            }
+        """)
+        self.data_final.setCalendarWidget(cal_fim)
+
 
         # 🔹 Criar calendário customizado para Data Final (reaproveita o estilo)
         cal_final = QCalendarWidget()
         cal_final.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)  # 🔹 remove coluna da semana
-        cal_final.setStyleSheet(cal_inicial.styleSheet())
+        cal_final.setStyleSheet(cal_inicio.styleSheet())
         self.data_final.setCalendarWidget(cal_final)
 
         # 🔹 Estilo dos QDateEdit
@@ -148,12 +219,11 @@ class RelatoriosWindow(QWidget):
 
         btn_filtrar.clicked.connect(self.gerar_previsao)
 
-        # ===== Tipo de previsão (novo seletor) =====
-        from PySide6.QtWidgets import QComboBox
-        self.cb_tipo = QComboBox()
-        self.cb_tipo.addItems(["Capital", "Juros", "Capital + Juros"])
-        self.cb_tipo.setCurrentIndex(2)  # começa em "Capital + Juros"
-        self.cb_tipo.setStyleSheet("""
+        # ===== Filtro "Mostrar" (Capital, Juros, Capital + Juros) =====        
+        self.cb_mostrar = QComboBox()
+        self.cb_mostrar.addItems(["Capital", "Juros", "Capital + Juros"])
+        self.cb_mostrar.setCurrentIndex(2)  # começa em "Capital + Juros"
+        self.cb_mostrar.setStyleSheet("""
             QComboBox {
                 background-color:#2c3446; 
                 color:white; 
@@ -169,15 +239,15 @@ class RelatoriosWindow(QWidget):
             }
         """)
 
-        # ===== Novo Combo: Modo de relatório =====
+        # ===== Filtro "Relatório" (modo de exibição) =====
         self.cb_modo = QComboBox()
         self.cb_modo.addItems(["Por cliente", "Por parcela"])
         self.cb_modo.setCurrentIndex(0)  # começa em "Por cliente"
-        self.cb_modo.setStyleSheet(self.cb_tipo.styleSheet())
-        
+        self.cb_modo.setStyleSheet(self.cb_mostrar.styleSheet())
+
         # 1 - Mostrar
         filtro_layout.addWidget(QLabel("Mostrar:"))
-        filtro_layout.addWidget(self.cb_tipo)
+        filtro_layout.addWidget(self.cb_mostrar)
 
         # 2 - Relatório
         filtro_layout.addWidget(QLabel("Relatório:"))
@@ -193,13 +263,12 @@ class RelatoriosWindow(QWidget):
         filtro_layout.addStretch()
         filtro_layout.addWidget(btn_filtrar)
 
-        
         # 🔹 Largura fixa para alinhar
-        self.cb_tipo.setFixedWidth(110)
-        self.cb_modo.setFixedWidth(110)
-
+        self.cb_mostrar.setFixedWidth(130)
+        self.cb_modo.setFixedWidth(130)
 
         layout.addLayout(filtro_layout)
+
 
         # ===== Tabela de resultados =====
         # Agora com 4 colunas (Cliente + Data + Capital + Juros)
@@ -226,7 +295,7 @@ class RelatoriosWindow(QWidget):
             self.gerar_previsao()
 
         # 🔹 Ação do combo: mostrar/ocultar colunas
-        self.cb_tipo.currentIndexChanged.connect(self._toggle_columns)
+        self.cb_mostrar.currentIndexChanged.connect(self._toggle_columns)
 
         if ultima_pesquisa["data_ini"] and ultima_pesquisa["data_fim"]:
             # restaurar filtros na tela
@@ -289,6 +358,7 @@ class RelatoriosWindow(QWidget):
         from emprestimos import carregar_emprestimos
         from clientes import carregar_clientes
         from datetime import datetime
+        from PySide6.QtWidgets import QTableWidgetItem
 
         # limpar tabela
         self.tabela_previsao.setRowCount(0)
@@ -299,13 +369,13 @@ class RelatoriosWindow(QWidget):
         dt_ini = datetime.strptime(data_ini, "%d/%m/%Y")
         dt_fim = datetime.strptime(data_fim, "%d/%m/%Y")
 
-        tipo = self.cb_tipo.currentText()
+        mostrar = self.cb_mostrar.currentText()
         modo = self.cb_modo.currentText()
 
         # 🔹 salvar como última pesquisa
         ultima_pesquisa["data_ini"] = data_ini
         ultima_pesquisa["data_fim"] = data_fim
-        ultima_pesquisa["tipo"] = tipo
+        ultima_pesquisa["mostrar"] = mostrar
         ultima_pesquisa["modo"] = modo
 
         # carregar dados brutos
@@ -366,13 +436,19 @@ class RelatoriosWindow(QWidget):
                 self.tabela_previsao.setItem(row, 0, QTableWidgetItem(linha["cliente"]))
                 self.tabela_previsao.setItem(row, 1, QTableWidgetItem(linha["data"]))
 
-                if tipo in ["Capital", "Capital + Juros"]:
-                    self.tabela_previsao.setItem(row, 2, QTableWidgetItem(f"R$ {linha['capital']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")))
+                if mostrar in ["Capital", "Capital + Juros"]:
+                    self.tabela_previsao.setItem(
+                        row, 2,
+                        QTableWidgetItem(f"R$ {linha['capital']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                    )
                 else:
                     self.tabela_previsao.setItem(row, 2, QTableWidgetItem(""))
 
-                if tipo in ["Juros", "Capital + Juros"]:
-                    self.tabela_previsao.setItem(row, 3, QTableWidgetItem(f"R$ {linha['juros']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")))
+                if mostrar in ["Juros", "Capital + Juros"]:
+                    self.tabela_previsao.setItem(
+                        row, 3,
+                        QTableWidgetItem(f"R$ {linha['juros']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                    )
                 else:
                     self.tabela_previsao.setItem(row, 3, QTableWidgetItem(""))
 
@@ -391,12 +467,18 @@ class RelatoriosWindow(QWidget):
                 self.tabela_previsao.setItem(row, 0, QTableWidgetItem(cliente))
                 self.tabela_previsao.setItem(row, 1, QTableWidgetItem("-"))
 
-                if tipo in ["Capital", "Capital + Juros"]:
-                    self.tabela_previsao.setItem(row, 2, QTableWidgetItem(f"R$ {vals['capital']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")))
+                if mostrar in ["Capital", "Capital + Juros"]:
+                    self.tabela_previsao.setItem(
+                        row, 2,
+                        QTableWidgetItem(f"R$ {vals['capital']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                    )
                 else:
                     self.tabela_previsao.setItem(row, 2, QTableWidgetItem(""))
 
-                if tipo in ["Juros", "Capital + Juros"]:
-                    self.tabela_previsao.setItem(row, 3, QTableWidgetItem(f"R$ {vals['juros']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")))
+                if mostrar in ["Juros", "Capital + Juros"]:
+                    self.tabela_previsao.setItem(
+                        row, 3,
+                        QTableWidgetItem(f"R$ {vals['juros']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                    )
                 else:
                     self.tabela_previsao.setItem(row, 3, QTableWidgetItem(""))
