@@ -59,7 +59,9 @@ def criar_tabelas_local():
             valor_pago TEXT,
             residual TEXT,
             data_pagamento TEXT,
-            id_usuario TEXT
+            id_usuario TEXT,
+            data_prevista TEXT,
+            comentario TEXT
         )
     """)
 

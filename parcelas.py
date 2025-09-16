@@ -57,9 +57,11 @@ def salvar_parcelas(lista=None):
             INSERT OR REPLACE INTO parcelas (
                 id, id_emprestimo, numero, valor, vencimento,
                 juros, desconto, pg_principal, pg_juros,
-                valor_pago, residual, data_pagamento, id_usuario
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                valor_pago, residual, data_pagamento, id_usuario,
+                data_prevista, comentario
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, parcela)
+
 
     conn.commit()
     conn.close()
@@ -69,7 +71,8 @@ def salvar_parcelas(lista=None):
 def adicionar_ou_atualizar_parcela(
     id_emprestimo, numero, valor, vencimento,
     juros="", desconto="", parcela_atualizada="",
-    valor_pago="", residual="", pago="Não", data_pagamento=""
+    valor_pago="", residual="", pago="Não", data_pagamento="",
+    id_usuario=""
 ):
     """
     Adiciona ou atualiza parcela com todos os campos novos.
@@ -88,7 +91,9 @@ def adicionar_ou_atualizar_parcela(
         nova_parcela = (
             parcela_id, id_emprestimo, numero, valor, vencimento,
             juros, desconto, parcela_atualizada, valor_pago,
-            residual, pago, data_pagamento
+            residual, pago, data_pagamento,
+            existente[13] if len(existente) > 13 else "",  # data_prevista
+            existente[14] if len(existente) > 14 else ""   # comentario
         )
         parcelas = [nova_parcela if p[0] == parcela_id else p for p in parcelas]
         
@@ -97,7 +102,9 @@ def adicionar_ou_atualizar_parcela(
         nova_parcela = (
             parcela_id, id_emprestimo, numero, valor, vencimento,
             juros, desconto, parcela_atualizada, valor_pago,
-            residual, pago, data_pagamento
+            residual, pago, data_pagamento,
+            "",  # data_prevista inicial
+            ""   # comentario inicial
         )
         parcelas.append(nova_parcela)       
 

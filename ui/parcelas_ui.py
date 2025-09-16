@@ -7,9 +7,6 @@ from PySide6.QtGui import QColor, QFont, QRegularExpressionValidator
 
 import uuid
 
-from datetime import datetime, timedelta
-import calendar
-
 from parcelas import carregar_parcelas_por_emprestimo
 
 class ParcelasWindow(QWidget):
@@ -79,6 +76,10 @@ class ParcelasWindow(QWidget):
         if self.readonly:
             self.tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
 
+        # Habilitar menu de contexto (clique direito)
+        self.tabela.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tabela.customContextMenuRequested.connect(self.abrir_menu_contexto)
+
         # Aparência da tabela
         header = self.tabela.horizontalHeader()
         header.setStyleSheet("""
@@ -125,10 +126,12 @@ class ParcelasWindow(QWidget):
 
         for linha, parcela in enumerate(parcelas_do_emprestimo):
             (
-                _id, _id_emp, num, valor, venc,
+                _id, id_emp, num, valor, venc,
                 juros, desconto, pg_principal, pg_juros,
-                valor_pago, residual, data_pag, _id_usuario
+                valor_pago, residual, data_pag, id_usuario,
+                data_prevista, comentario
             ) = parcela
+
 
             self.tabela.insertRow(linha)
 
@@ -295,6 +298,96 @@ class ParcelasWindow(QWidget):
 
         self.atualizar_totalizadores()
     
+    def abrir_menu_contexto(self, pos):
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+
+        # Descobre em qual linha o clique foi feito
+        row = self.tabela.indexAt(pos).row()
+        if row < 0 or row >= self.tabela.rowCount() - 1:  # ignora totalizador
+            return
+
+        # Verifica se a parcela já foi paga
+        valor_pago = self.tabela.item(row, 8).text() if self.tabela.item(row, 8) else ""
+        if valor_pago.strip():
+            return  # não mostrar opção se já está paga
+
+        # Adiciona opção "Adiar pagamento"
+        adiar_action = menu.addAction("⏩ Adiar pagamento")
+        adiar_action.triggered.connect(lambda: self.abrir_adiar_pagamento(row))
+
+        menu.exec(self.tabela.viewport().mapToGlobal(pos))
+
+
+    def abrir_adiar_pagamento(self, row):
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
+        from PySide6.QtGui import QRegularExpressionValidator
+        from PySide6.QtCore import QRegularExpression
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Adiar Pagamento")
+        dialog.setStyleSheet("background-color:#1c2331; color:white;")
+        dialog.setFixedSize(300, 200)
+
+        layout = QVBoxLayout(dialog)
+
+        # Campo comentário
+        lbl_coment = QLabel("Comentário (máx. 100):")
+        inp_coment = QLineEdit()
+        inp_coment.setMaxLength(100)
+        inp_coment.setStyleSheet("background-color:#2c3446; color:white; padding:6px; border-radius:6px;")
+        layout.addWidget(lbl_coment)
+        layout.addWidget(inp_coment)
+
+        # Campo data prevista
+        lbl_data = QLabel("Data prevista (dd/mm/aaaa):")
+        inp_data = QLineEdit()
+        inp_data.setPlaceholderText("dd/mm/aaaa")
+        regex = QRegularExpression(r"^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4}$")
+        validator = QRegularExpressionValidator(regex, inp_data)
+        inp_data.setValidator(validator)
+        inp_data.setStyleSheet("background-color:#2c3446; color:white; padding:6px; border-radius:6px;")
+        layout.addWidget(lbl_data)
+        layout.addWidget(inp_data)
+
+        # Botão salvar
+        btn_save = QPushButton("Salvar")
+        btn_save.setStyleSheet("background-color:#27ae60; color:white; padding:6px; border-radius:6px; font-weight:bold;")
+        layout.addWidget(btn_save)
+
+        def salvar():
+            comentario = inp_coment.text().strip()
+            data_prevista = inp_data.text().strip()
+
+            if not data_prevista:
+                QMessageBox.warning(dialog, "Erro", "Informe a data prevista.")
+                return
+
+            # Atualiza a linha na tabela
+            from PySide6.QtWidgets import QTableWidgetItem
+            self.tabela.setItem(row, 10, QTableWidgetItem(data_prevista))  # opcional mostrar na mesma coluna "Data do pag." se preferir
+            # ⚠️ Melhor seria criar colunas extras futuramente só para data_prevista/comentário
+
+            # Atualiza lista em memória
+            from parcelas import parcelas, salvar_parcelas
+            if row < len(parcelas):
+                antiga = list(parcelas[row])
+                if len(antiga) < 15:
+                    antiga.extend(["", ""])  # garante espaço para novas colunas
+                antiga[13] = data_prevista
+                antiga[14] = comentario
+                parcelas[row] = tuple(antiga)
+
+            salvar_parcelas()
+
+            QMessageBox.information(dialog, "Sucesso", "Pagamento adiado com sucesso.")
+            dialog.accept()
+
+        btn_save.clicked.connect(salvar)
+
+        dialog.exec()
+
+
     def handle_zerar_click(self):
         sender = self.sender()
         if not sender:
@@ -451,8 +544,11 @@ class ParcelasWindow(QWidget):
                 valor_pago,
                 residual,
                 data_pag,
-                self.id_usuario
+                self.id_usuario,
+                "" if linha >= len(parcelas) else (parcelas[linha][13] if len(parcelas[linha]) > 13 else ""),
+                "" if linha >= len(parcelas) else (parcelas[linha][14] if len(parcelas[linha]) > 14 else "")
             ))
+
         print("[DEBUG] Salvando no banco local e sincronizando")
         parcelas[:] = novas_parcelas
         salvar_parcelas(parcelas)

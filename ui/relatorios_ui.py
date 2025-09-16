@@ -152,7 +152,8 @@ class RelatoriosWindow(QWidget):
             (
                 _id, id_emp, num, valor, venc,
                 juros, desconto, pg_principal, pg_juros,
-                valor_pago, residual, data_pag, id_usuario
+                valor_pago, residual, data_pag, id_usuario,
+                data_prevista, comentario
             ) = p
 
             if id_emp not in emprestimos:

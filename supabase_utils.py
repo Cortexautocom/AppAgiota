@@ -37,7 +37,8 @@ TABELAS = {
         "campos": [
             "id", "id_emprestimo", "numero", "valor", "vencimento",
             "juros", "desconto", "pg_principal", "pg_juros",
-            "valor_pago", "residual", "data_pagamento", "id_usuario"
+            "valor_pago", "residual", "data_pagamento", "id_usuario",
+            "data_prevista", "comentario"   # 🔹 NOVAS COLUNAS
         ],
         "chave": "id"
     },

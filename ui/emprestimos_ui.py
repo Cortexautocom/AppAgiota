@@ -357,7 +357,9 @@ class EmprestimoForm(QWidget):
                 "",                 # valor_pago vazio
                 "",                 # residual vazio
                 "",                 # data_pagamento vazio
-                id_usuario
+                id_usuario,
+                "",                 # data_prevista inicial
+                ""                  # comentario inicial
             )
             novas_parcelas.append(nova_parcela)        
 
