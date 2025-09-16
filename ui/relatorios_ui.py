@@ -90,6 +90,11 @@ class RelatoriosWindow(QWidget):
         # 🔹 Conexões (mudança instantânea)
         self.cb_tipo.currentIndexChanged.connect(self.carregar_dados)
         self.cb_mostrar.currentIndexChanged.connect(self.carregar_dados)
+        # 🔹 Define padrão inicial: "Parcelas em aberto" + "Capital + Juros"
+        self.cb_tipo.setCurrentText("Parcelas em aberto")
+        self.cb_mostrar.setCurrentText("Capital + Juros")
+        self.carregar_dados()
+
 
     def carregar_dados(self):
         """Decide qual relatório exibir conforme o filtro selecionado."""
@@ -247,16 +252,18 @@ class RelatoriosWindow(QWidget):
         jur_item.setFont(fonte_negrito)
         jur_item.setTextAlignment(Qt.AlignCenter)
         self.tabela.setItem(row_total, 3, jur_item)
-
+        
         # Ajusta colunas conforme filtro "Mostrar"
         mostrar = self.cb_mostrar.currentText()
         if mostrar == "Capital":
-            self.tabela.setColumnHidden(2, True)   # esconde Juros
-            self.tabela.setColumnHidden(1, False)
+            # Cliente (0) e Nº (1) sempre visíveis
+            self.tabela.setColumnHidden(2, False)  # Capital
+            self.tabela.setColumnHidden(3, True)   # Juros
         elif mostrar == "Juros":
-            self.tabela.setColumnHidden(1, True)   # esconde Capital
-            self.tabela.setColumnHidden(2, False)
+            self.tabela.setColumnHidden(2, True)   # Capital
+            self.tabela.setColumnHidden(3, False)  # Juros
         else:  # Capital + Juros
-            self.tabela.setColumnHidden(1, False)
             self.tabela.setColumnHidden(2, False)
+            self.tabela.setColumnHidden(3, False)
+
 
