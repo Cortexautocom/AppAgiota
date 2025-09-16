@@ -71,7 +71,7 @@ class FinanceiroWindow(QWidget):
         self.btn_garantias.clicked.connect(self.show_garantias)
         menu_layout.addWidget(self.btn_garantias)
 
-        self.btn_arquivados = QPushButton("📂 Empréstimos Arquivados")
+        self.btn_arquivados = QPushButton("📂 Empréstimos\n\t\t\t\t\t\t\tArquivados")
         self.btn_arquivados.setStyleSheet("""
             QPushButton {
                 background: none; color: white;
@@ -136,6 +136,7 @@ class FinanceiroWindow(QWidget):
             "ID", "Data inicial", "Último venc.", "Valor", "Parcelas",
             "Juros", "Taxa", "Status"
         ])
+        tabela.verticalHeader().setVisible(False)
         tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         tabela.setColumnHidden(0, True)  # 🔹 Esconde a coluna do ID
         tabela.setStyleSheet("""

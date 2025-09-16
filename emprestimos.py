@@ -124,4 +124,9 @@ def arquivar_emprestimo(id_emprestimo):
     global emprestimos
     emprestimos = [e if e[0] != id_emprestimo else e[:-1] + ("não",) for e in emprestimos]
 
+    # 🔹 Sincroniza com o Supabase
+    from emprestimos import sincronizar_emprestimos_upload
+    sincronizar_emprestimos_upload()
+
     return True
+

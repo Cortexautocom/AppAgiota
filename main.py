@@ -462,26 +462,32 @@ class ModernWindow(QMainWindow):
         layout.addLayout(filters_row)
 
         # Tabela de resultados
-        self.table_results = QTableWidget(0, 8)
+        self.table_results = QTableWidget(0, 9)
         self.table_results.cellDoubleClicked.connect(self.abrir_financeiro_cliente)
-
         self.table_results.setSelectionMode(QAbstractItemView.NoSelection)
         self.table_results.setHorizontalHeaderLabels(
-            ["Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação", "Financ.", "Editar"]
+            ["ID", "Nome", "CPF", "Endereço", "Cidade", "Telefone", "Indicação", "Financ.", "Editar"]
         )
+        self.table_results.setColumnHidden(0, True) 
+        
+        self.table_results.verticalHeader().setVisible(False)        
+        
         header = self.table_results.horizontalHeader()
+        self.table_results.setSortingEnabled(True)
+        self.table_results.sortItems(1, Qt.AscendingOrder)  # agora ordena pela coluna Nome (1)
 
-        # As primeiras 6 colunas (Nome até Indicação) ficam expansíveis
-        for col in range(6):
+        # Colunas Nome até Indicação (1 a 6) expansíveis
+        for col in range(1, 7):
             header.setSectionResizeMode(col, QHeaderView.Stretch)
 
-        # Coluna Financeiro (índice 6) fixa em 80px
-        header.setSectionResizeMode(6, QHeaderView.Fixed)
-        self.table_results.setColumnWidth(6, 60)
-
-        # Coluna Editar (índice 7) fixa em 80px
+        # Coluna Financeiro (índice 7) fixa em 60px
         header.setSectionResizeMode(7, QHeaderView.Fixed)
         self.table_results.setColumnWidth(7, 60)
+
+        # Coluna Editar (índice 8) fixa em 60px
+        header.setSectionResizeMode(8, QHeaderView.Fixed)
+        self.table_results.setColumnWidth(8, 60)
+
 
         self.table_results.setStyleSheet("""
             QTableWidget {
@@ -506,7 +512,14 @@ class ModernWindow(QMainWindow):
         if row < 0 or row >= len(self.clients):
             return
 
-        cliente = self.clients[row]  # tupla (id_cliente, nome, cpf, telefone, endereco, cidade, indicacao)
+        # Recupera o ID do cliente a partir da tabela (coluna oculta 0)
+        id_cliente = self.table_results.item(row, 0).text()
+
+        # Busca o cliente correto na lista em memória
+        cliente = next((c for c in self.clients if c[0] == id_cliente), None)
+        if not cliente:
+            return
+        # tupla (id_cliente, nome, cpf, telefone, endereco, cidade, indicacao)
 
         # 🔹 Abre a janela FinanceiroWindow já focada
         self.finance_window = FinanceiroWindow(cliente, parent=self)
@@ -585,50 +598,56 @@ class ModernWindow(QMainWindow):
         if self.table_results.receivers("itemChanged(QTableWidgetItem*)") > 0:
             self.table_results.itemChanged.disconnect(self.handle_table_edit)
 
+        # 🔹 Desliga ordenação enquanto repopula
+        self.table_results.setSortingEnabled(False)
         self.table_results.setRowCount(0)
 
         for c in filtered:
             row = self.table_results.rowCount()
             self.table_results.insertRow(row)
+            
+            # ID oculto (coluna 0)
+            item_id = QTableWidgetItem(c[0])
+            item_id.setFlags(item_id.flags() & ~Qt.ItemIsEditable)
+            self.table_results.setItem(row, 0, item_id)
 
-            # Nome
+            # Nome → coluna 1
             item_nome = QTableWidgetItem(c[1])
             item_nome.setFlags(item_nome.flags() & ~Qt.ItemIsEditable)
-            #item_nome.setTextAlignment(Qt.AlignCenter)
-            self.table_results.setItem(row, 0, item_nome)
+            self.table_results.setItem(row, 1, item_nome)
 
-            # CPF
+            # CPF → coluna 2
             item_cpf = QTableWidgetItem(c[2])
             item_cpf.setFlags(item_cpf.flags() & ~Qt.ItemIsEditable)
             item_cpf.setTextAlignment(Qt.AlignCenter)
-            self.table_results.setItem(row, 1, item_cpf)
+            self.table_results.setItem(row, 2, item_cpf)
 
-            # Endereço
+            # Endereço → coluna 3
             item_endereco = QTableWidgetItem(c[4])
             item_endereco.setFlags(item_endereco.flags() & ~Qt.ItemIsEditable)
             item_endereco.setTextAlignment(Qt.AlignCenter)
-            self.table_results.setItem(row, 2, item_endereco)
+            self.table_results.setItem(row, 3, item_endereco)
 
-            # Cidade
+            # Cidade → coluna 4
             item_cidade = QTableWidgetItem(c[5])
             item_cidade.setFlags(item_cidade.flags() & ~Qt.ItemIsEditable)
             item_cidade.setTextAlignment(Qt.AlignCenter)
-            self.table_results.setItem(row, 3, item_cidade)
+            self.table_results.setItem(row, 4, item_cidade)
 
-            # Telefone
+            # Telefone → coluna 5
             item_tel = QTableWidgetItem(c[3])
             item_tel.setFlags(item_tel.flags() & ~Qt.ItemIsEditable)
             item_tel.setTextAlignment(Qt.AlignCenter)
-            self.table_results.setItem(row, 4, item_tel)
+            self.table_results.setItem(row, 5, item_tel)
 
-            # Indicação
+            # Indicação → coluna 6
             item_indicacao = QTableWidgetItem(c[6])
             item_indicacao.setFlags(item_indicacao.flags() & ~Qt.ItemIsEditable)
             item_indicacao.setTextAlignment(Qt.AlignCenter)
-            self.table_results.setItem(row, 5, item_indicacao)
+            self.table_results.setItem(row, 6, item_indicacao)
+
 
             # Botão 💵 Financeiro
-            # Botão 💵 Financeiro centralizado
             btn_financeiro = QPushButton("💵")
             btn_financeiro.setFixedSize(28, 28)
             btn_financeiro.setToolTip("Financeiro")
@@ -650,10 +669,9 @@ class ModernWindow(QMainWindow):
             layout_fin.addStretch()
             layout_fin.addWidget(btn_financeiro)
             layout_fin.addStretch()
+            self.table_results.setCellWidget(row, 7, widget_fin)
 
-            self.table_results.setCellWidget(row, 6, widget_fin)
-
-            # Botão ✏️ Editar centralizado
+            # Botão ✏️ Editar
             btn_edit = QPushButton("✏️")
             btn_edit.setFixedSize(28, 28)
             btn_edit.setToolTip("Editar dados")
@@ -685,11 +703,14 @@ class ModernWindow(QMainWindow):
             layout_edit.addStretch()
             layout_edit.addWidget(btn_edit)
             layout_edit.addStretch()
+            self.table_results.setCellWidget(row, 8, widget_edit)
 
-            self.table_results.setCellWidget(row, 7, widget_edit)
+        # 🔹 Reativa ordenação depois de preencher
+        self.table_results.setSortingEnabled(True)
 
-
+        # Reconecta sinal
         self.table_results.itemChanged.connect(self.handle_table_edit)
+
 
 
     def open_finance_form(self, client_data):

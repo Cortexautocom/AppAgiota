@@ -20,6 +20,8 @@ class ArquivadosWindow(QWidget):
         self.tabela.setHorizontalHeaderLabels([
             "ID", "Data inicial", "Último venc.", "Valor", "Parcelas", "Juros", "Taxa"
         ])
+        self.tabela.verticalHeader().setVisible(False)
+
         self.tabela.setColumnHidden(0, True)  # esconde ID
         self.tabela.setSelectionMode(QAbstractItemView.NoSelection)
         self.tabela.setStyleSheet("""
