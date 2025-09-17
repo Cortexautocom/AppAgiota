@@ -644,8 +644,18 @@ class ParcelasWindow(QWidget):
         self.tabela.setItem(nova_linha, 4, item_desc)
 
         # Botão de cálculo
-        btn_calc = QPushButton("⚙️")
-        btn_calc.setStyleSheet("background-color:#3498db; color:white; border-radius:6px;")
+        btn_calc = QPushButton("⚡")
+        btn_calc.setStyleSheet("""
+                    QPushButton {
+                        background-color: transparent;
+                        color: #3498db;
+                        border: none;
+                        font-size: 16px;
+                    }
+                    QPushButton:hover {
+                        color: #5dade2;  /* tom mais claro ao passar o mouse */
+                    }
+                """)
         btn_calc.clicked.connect(self.handle_calc_click)
         self.tabela.setCellWidget(nova_linha, 5, btn_calc)
 
@@ -689,8 +699,18 @@ class ParcelasWindow(QWidget):
         self.tabela.setCellWidget(nova_linha, 10, edit_data)
 
         # Botão Zerar
-        btn_zerar = QPushButton("⚡")
-        btn_zerar.setStyleSheet("background-color:#e74c3c; color:white; border-radius:6px;")
+        btn_zerar = QPushButton("✂️")
+        btn_zerar.setStyleSheet("""
+                    QPushButton {
+                        background-color: transparent;
+                        color: #e74c3c;
+                        border: none;
+                        font-size: 16px;
+                    }
+                    QPushButton:hover {
+                        color: #ff6b6b;
+                    }
+                """)
         btn_zerar.clicked.connect(self.handle_zerar_click)
         self.tabela.setCellWidget(nova_linha, 11, btn_zerar)
 
