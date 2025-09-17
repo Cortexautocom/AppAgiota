@@ -103,24 +103,21 @@ def enviar_tabela(nome, registros):
         registros_validos = []
         for r in registros:
             if isinstance(r, tuple):
-                # Converte tupla para dict com todos os campos, inclusive o ID
                 r_dict = {c: r[i] for i, c in enumerate(config["campos"])}
             else:
                 r_dict = r
 
-            # Aceita registros mesmo que algum campo seja vazio, desde que o ID exista
             if r_dict.get(config["chave"]):
                 registros_validos.append(r_dict)
 
         if not registros_validos:
-            print(f"⚠ Nenhum registro válido de {nome} para enviar.")
             return False
 
         supabase.table(config["remota"]).upsert(
             registros_validos,
             on_conflict=[config["chave"]]
         ).execute()
-        
+
         return True
 
     except Exception as e:

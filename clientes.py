@@ -37,11 +37,8 @@ def salvar_clientes(lista_clientes):
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, cliente)
 
-    conn.commit()
-
-    # 🔹 Debug: conferir se realmente gravou
-    cur.execute("SELECT * FROM clientes")    
-
+    conn.commit()   
+    cur.execute("SELECT * FROM clientes")
     conn.close()
 
 

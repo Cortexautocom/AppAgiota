@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QRegularExpression
 from PySide6.QtGui import QColor, QFont, QRegularExpressionValidator
-
+from parcelas import parcelas, salvar_parcelas, sincronizar_parcelas_upload
 import uuid
 
 from parcelas import carregar_parcelas_por_emprestimo
@@ -177,8 +177,7 @@ class ParcelasWindow(QWidget):
                     QPushButton:hover {
                         color: #5dade2;  /* tom mais claro ao passar o mouse */
                     }
-                """)
-                print(f"[DEBUG] Criando botão de cálculo na linha {linha}")
+                """)                
                 btn_calc.clicked.connect(self.handle_calc_click)
                 self.tabela.setCellWidget(linha, 5, btn_calc)
             else:
@@ -363,22 +362,27 @@ class ParcelasWindow(QWidget):
                 QMessageBox.warning(dialog, "Erro", "Informe a data prevista.")
                 return
 
-            # Atualiza a linha na tabela
+            # Atualiza a tabela (opcionalmente na mesma coluna Data do Pag.)
             from PySide6.QtWidgets import QTableWidgetItem
-            self.tabela.setItem(row, 10, QTableWidgetItem(data_prevista))  # opcional mostrar na mesma coluna "Data do pag." se preferir
-            # ⚠️ Melhor seria criar colunas extras futuramente só para data_prevista/comentário
+            self.tabela.setItem(row, 10, QTableWidgetItem(data_prevista))
 
-            # Atualiza lista em memória
-            from parcelas import parcelas, salvar_parcelas
+            # Atualiza lista em memória pelo ID da parcela
+            from parcelas import parcelas, salvar_parcelas, sincronizar_parcelas_upload
             if row < len(parcelas):
-                antiga = list(parcelas[row])
-                if len(antiga) < 15:
-                    antiga.extend(["", ""])  # garante espaço para novas colunas
-                antiga[13] = data_prevista
-                antiga[14] = comentario
-                parcelas[row] = tuple(antiga)
+                id_parcela = parcelas[row][0]  # ID real
+                for i, p in enumerate(parcelas):
+                    if p[0] == id_parcela:
+                        antiga = list(p)
+                        if len(antiga) < 15:
+                            antiga.extend(["", ""])  # garante colunas extras
+                        antiga[13] = data_prevista
+                        antiga[14] = comentario
+                        parcelas[i] = tuple(antiga)
+                        break
 
-            salvar_parcelas()
+            # Salva local + Supabase
+            salvar_parcelas(parcelas)
+            sincronizar_parcelas_upload()
 
             QMessageBox.information(dialog, "Sucesso", "Pagamento adiado com sucesso.")
             dialog.accept()
@@ -387,37 +391,23 @@ class ParcelasWindow(QWidget):
 
         dialog.exec()
 
-
     def handle_zerar_click(self):
         sender = self.sender()
         if not sender:
             return
         row = self.tabela.indexAt(sender.pos()).row()
-        if row >= 0:
-            print(f"[DEBUG] Zerando saldo na linha {row}")
+        if row >= 0:            
             self.linhas_zeradas.add(row)
             self.tabela.item(row, 9).setText(self._fmt(0.0))
 
-
-
     def handle_calc_click(self):
         sender = self.sender()
-        print(f"[DEBUG] Botão clicado: {sender}")
         if not sender:
-            print("[DEBUG] Nenhum sender encontrado")
             return
 
-        pos = sender.pos()
-        print(f"[DEBUG] sender.pos() = {pos}")
         row = self.tabela.indexAt(sender.pos()).row()
-        print(f"[DEBUG] indexAt(sender.pos()) retornou row={row}")
-
         if row >= 0:
-            print(f"[DEBUG] Chamando calcular_pg para linha {row}")
             self.calcular_pg(row)
-        else:
-            print("[DEBUG] Nenhuma linha encontrada para esse botão")
-
 
     def adicionar_totalizadores(self, fonte_negrito):
         row = self.tabela.rowCount()
@@ -505,11 +495,9 @@ class ParcelasWindow(QWidget):
                 celula.setText(self._fmt(total))
 
     def salvar_modificacoes(self):
-        print("[DEBUG] salvar_modificacoes iniciado")
         from parcelas import salvar_parcelas, parcelas, sincronizar_parcelas_upload
         novas_parcelas = []
         for linha in range(self.tabela.rowCount() - 1):
-            print(f"[DEBUG] Salvando linha {linha}")
             numero = self.tabela.item(linha, 0).text()
             venc = self.tabela.item(linha, 1).text()
             valor = self.tabela.item(linha, 2).text().replace("R$", "").strip()
@@ -518,9 +506,10 @@ class ParcelasWindow(QWidget):
             pg_principal = self.tabela.item(linha, 6).text()
             pg_juros = self.tabela.item(linha, 7).text()
             valor_pago = self.tabela.item(linha, 8).text()
-            residual = self.tabela.item(linha, 9).text()                    
+            residual = self.tabela.item(linha, 9).text()
             if linha in self.linhas_zeradas:
                 residual = "0"
+
             widget = self.tabela.cellWidget(linha, 10)
             if widget:
                 data_pag = widget.text()
@@ -531,6 +520,7 @@ class ParcelasWindow(QWidget):
                 parcela_id = parcelas[linha][0]
             else:
                 parcela_id = str(uuid.uuid4())
+
             novas_parcelas.append((
                 parcela_id,
                 self.emprestimo["id"],
@@ -549,37 +539,32 @@ class ParcelasWindow(QWidget):
                 "" if linha >= len(parcelas) else (parcelas[linha][14] if len(parcelas[linha]) > 14 else "")
             ))
 
-        print("[DEBUG] Salvando no banco local e sincronizando")
         parcelas[:] = novas_parcelas
         salvar_parcelas(parcelas)
         sincronizar_parcelas_upload()
-        print("[DEBUG] Salvamento concluído")
+
         if self.on_save_callback:
             self.on_save_callback()
         self.close()
 
-    def calcular_pg(self, row):
-        """Calcula Pg. Principal e Pg. Juros da linha selecionada."""
-        print(f"[DEBUG] calcular_pg chamado para linha {row}")
+
+    def calcular_pg(self, row):        
         try:
             capital = float(self.emprestimo.get("capital", 0))
             n = int(str(self.emprestimo.get("meses", 1)).strip())  # 🔹 força conversão para inteiro
             total_juros = float(self.emprestimo.get("juros", 0))
 
-            print(f"[DEBUG] capital={capital}, meses={n}, total_juros={total_juros}")
-
             if capital <= 0 or n <= 0:
-                print("[DEBUG] Dados inválidos para cálculo, abortando")
                 return
 
             pg_principal = capital / n
             pg_juros = total_juros / n
-            print(f"[DEBUG] pg_principal={pg_principal}, pg_juros={pg_juros}")
 
             self.tabela.item(row, 6).setText(self._fmt(pg_principal))
             self.tabela.item(row, 7).setText(self._fmt(pg_juros))
-        except Exception as e:
-            print(f"[DEBUG] Erro em calcular_pg: {e}")
+        except Exception:
+            pass
+
 
     def adicionar_parcela(self):
         """Adiciona uma nova parcela no final, obedecendo o padrão de datas e valores originais"""
@@ -593,39 +578,23 @@ class ParcelasWindow(QWidget):
         # número da nova parcela = última parcela + 1
         numero = str(nova_linha + 1)
 
-        # 🔹 Depuração do valor de prestação
+        # Valor da prestação
         valor_prestacao_raw = self.emprestimo.get("prestacao", 0)
-        print(f"[DEBUG] prestacao bruto vindo do dicionário: {valor_prestacao_raw} (tipo {type(valor_prestacao_raw)})")
-
         try:
             valor_prestacao = float(valor_prestacao_raw)
-            print(f"[DEBUG] convertido direto para float: {valor_prestacao}")
-        except Exception as e1:
-            print(f"[DEBUG] falhou conversão direta: {e1}")
+        except Exception:
             try:
                 valor_prestacao = float(str(valor_prestacao_raw).replace("R$", "").replace(".", "").replace(",", "."))
-                print(f"[DEBUG] convertido via limpeza de string: {valor_prestacao}")
-            except Exception as e2:
-                print(f"[DEBUG] falhou conversão com replace: {e2}")
-                valor_prestacao = 0
-
-        if valor_prestacao == 0:
-            print("[DEBUG] valor_prestacao veio 0, tentando calcular com capital+juros/meses")
-            try:
-                capital = float(self.emprestimo.get("capital", 0))
-                juros = float(self.emprestimo.get("juros", 0))
-                n = int(str(self.emprestimo.get("meses", 1)).strip())
-                valor_prestacao = (capital + juros) / n if n > 0 else 0
-                print(f"[DEBUG] calculado: capital={capital}, juros={juros}, n={n}, prestacao={valor_prestacao}")
-            except Exception as e3:
-                print(f"[DEBUG] erro no cálculo alternativo: {e3}")
-                valor_prestacao = 0
+            except Exception:
+                try:
+                    capital = float(self.emprestimo.get("capital", 0))
+                    juros = float(self.emprestimo.get("juros", 0))
+                    n = int(str(self.emprestimo.get("meses", 1)).strip())
+                    valor_prestacao = (capital + juros) / n if n > 0 else 0
+                except Exception:
+                    valor_prestacao = 0
 
         valor_fmt = self._fmt(valor_prestacao)
-        print(f"[DEBUG] valor final formatado da nova parcela: {valor_fmt}")
-
-        # ===== resto do método continua igual =====
-
 
         # 🔹 Data = 1 mês após a última parcela
         data_venc_ultima = self.tabela.item(row_total - 1, 1).text() if row_total > 0 else ""
@@ -641,15 +610,13 @@ class ParcelasWindow(QWidget):
             if dia_ref <= ultimo_dia:
                 vencimento = datetime(ano, mes, dia_ref)
             else:
-                # se não tiver esse dia no mês → vai para o dia 1 do próximo
                 mes += 1
                 if mes > 12:
                     mes = 1
                     ano += 1
                 vencimento = datetime(ano, mes, 1)
             novo_venc = vencimento.strftime("%d/%m/%Y")
-        except Exception as e:
-            print(f"[DEBUG] Erro ao calcular vencimento da nova parcela: {e}")
+        except Exception:
             novo_venc = ""
 
         # agora cria as células normalmente
@@ -721,14 +688,12 @@ class ParcelasWindow(QWidget):
 
         self.tabela.setCellWidget(nova_linha, 10, edit_data)
 
-
         # Botão Zerar
         btn_zerar = QPushButton("⚡")
         btn_zerar.setStyleSheet("background-color:#e74c3c; color:white; border-radius:6px;")
         btn_zerar.clicked.connect(self.handle_zerar_click)
         self.tabela.setCellWidget(nova_linha, 11, btn_zerar)
 
-        print(f"[DEBUG] Nova parcela adicionada: Nº {numero}, valor={valor_fmt}, vencimento={novo_venc}")
 
     def arquivar_emprestimo(self):
         """Arquiva o empréstimo atual e fecha a janela."""
