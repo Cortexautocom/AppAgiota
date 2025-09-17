@@ -395,6 +395,7 @@ class ParcelasWindow(QWidget):
             # Salva local + Supabase
             salvar_parcelas(parcelas)
             sincronizar_parcelas_upload()
+            self._colorir_linhas()
 
             QMessageBox.information(dialog, "Sucesso", "Pagamento adiado com sucesso.")
             dialog.accept()
@@ -841,7 +842,7 @@ class ParcelasWindow(QWidget):
 
     def _colorir_linhas(self):
         """Aplica cor de fonte nas parcelas conforme situação (vencimento/data prevista),
-        mas somente se o saldo da linha não estiver zerado."""
+        mas somente se o saldo da linha não estiver zerado e a data de pagamento estiver vazia."""
         from datetime import datetime
         from PySide6.QtGui import QColor
 
@@ -859,6 +860,17 @@ class ParcelasWindow(QWidget):
 
                 if saldo_val == 0:
                     continue  # não aplica cor em parcelas já quitadas
+
+                # 🔹 Verifica se já existe Data de Pagamento
+                data_pag_txt = ""
+                widget = self.tabela.cellWidget(row, 10)
+                if widget:
+                    data_pag_txt = widget.text()
+                elif self.tabela.item(row, 10):
+                    data_pag_txt = self.tabela.item(row, 10).text()
+
+                if data_pag_txt.strip():
+                    continue  # já tem data de pagamento → não aplica cor
 
                 # 🔹 Pega valores da linha
                 vencimento_txt = self.tabela.item(row, 1).text() if self.tabela.item(row, 1) else ""
