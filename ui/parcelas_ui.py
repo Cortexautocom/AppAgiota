@@ -196,6 +196,7 @@ class ParcelasWindow(QWidget):
             # Valor Pago
             item_pago = QTableWidgetItem(valor_pago or "")
             item_pago.setTextAlignment(Qt.AlignCenter)
+            item_pago.setFlags(item_pago.flags() & ~Qt.ItemIsEditable)  # 🔹 bloqueia edição manual
             self.tabela.setItem(linha, 8, item_pago)
 
             # Saldo (não editável)
@@ -296,6 +297,7 @@ class ParcelasWindow(QWidget):
 
 
         self.atualizar_totalizadores()
+        self._colorir_linhas()
     
     def abrir_menu_contexto(self, pos):
         from PySide6.QtWidgets import QMenu
@@ -348,6 +350,16 @@ class ParcelasWindow(QWidget):
         inp_data.setStyleSheet("background-color:#2c3446; color:white; padding:6px; border-radius:6px;")
         layout.addWidget(lbl_data)
         layout.addWidget(inp_data)
+
+        # 🔹 Pré-carregar dados já existentes da parcela
+        from parcelas import parcelas
+        if row < len(parcelas):
+            atual = parcelas[row]
+            if len(atual) > 14:
+                if atual[14]:  # comentário
+                    inp_coment.setText(atual[14])
+                if atual[13]:  # data_prevista
+                    inp_data.setText(atual[13])
 
         # Botão salvar
         btn_save = QPushButton("Salvar")
@@ -495,7 +507,62 @@ class ParcelasWindow(QWidget):
                 celula.setText(self._fmt(total))
 
     def salvar_modificacoes(self):
+        from PySide6.QtWidgets import QMessageBox
         from parcelas import salvar_parcelas, parcelas, sincronizar_parcelas_upload
+        import uuid
+
+        # 🔹 Validação de parcelas parcialmente pagas
+        for linha in range(self.tabela.rowCount() - 1):
+            valor_pago_txt = self.tabela.item(linha, 8).text() if self.tabela.item(linha, 8) else ""
+            saldo_txt = self.tabela.item(linha, 9).text() if self.tabela.item(linha, 9) else ""
+
+            try:
+                valor_pago = float(valor_pago_txt.replace("R$", "").replace(".", "").replace(",", ".").strip() or 0)
+            except:
+                valor_pago = 0.0
+
+            try:
+                saldo = float(saldo_txt.replace("R$", "").replace(".", "").replace(",", ".").strip() or 0)
+            except:
+                saldo = 0.0
+
+            if valor_pago > 0 and saldo > 0:
+                QMessageBox.warning(
+                    self,
+                    "Parcela parcialmente paga",
+                    "Você não pode sair dessa tela com uma parcela parcialmente paga .\n\n"
+                    "Se este cliente fez um acordo, faça os ajustes necessários."
+                )
+                return  # 🔹 Cancela o salvamento, mantém tela ativa
+
+        # 🔹 Validação: se Valor pago > 0 mas não tem Data Pagamento
+        for linha in range(self.tabela.rowCount() - 1):
+            valor_pago_txt = self.tabela.item(linha, 8).text() if self.tabela.item(linha, 8) else ""
+            data_pag_txt = ""
+
+            widget = self.tabela.cellWidget(linha, 10)
+            if widget:
+                data_pag_txt = widget.text()
+            elif self.tabela.item(linha, 10):
+                data_pag_txt = self.tabela.item(linha, 10).text()
+
+            try:
+                valor_pago = float(valor_pago_txt.replace("R$", "").replace(".", "").replace(",", ".").strip() or 0)
+            except:
+                valor_pago = 0.0
+
+            if valor_pago > 0 and not data_pag_txt.strip():
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(
+                    self,
+                    "Data de pagamento obrigatória",
+                    "Insira a data de pagamento da parcela ⚠️"
+                )
+                return  # 🔹 Cancela salvamento
+
+
+
+        # 🔹 Monta lista de parcelas atualizada
         novas_parcelas = []
         for linha in range(self.tabela.rowCount() - 1):
             numero = self.tabela.item(linha, 0).text()
@@ -539,31 +606,59 @@ class ParcelasWindow(QWidget):
                 "" if linha >= len(parcelas) else (parcelas[linha][14] if len(parcelas[linha]) > 14 else "")
             ))
 
+        # 🔹 Atualiza lista global e sincroniza
         parcelas[:] = novas_parcelas
         salvar_parcelas(parcelas)
         sincronizar_parcelas_upload()
 
+        # 🔹 Reaplica cores conforme situação
+        self._colorir_linhas()
+
+        # 🔹 Callback externo + fechar janela
         if self.on_save_callback:
             self.on_save_callback()
         self.close()
 
 
-    def calcular_pg(self, row):        
+
+    def calcular_pg(self, row):
+        """Calcula Pg. Principal e Pg. Juros da linha selecionada."""
         try:
             capital = float(self.emprestimo.get("capital", 0))
-            n = int(str(self.emprestimo.get("meses", 1)).strip())  # 🔹 força conversão para inteiro
+            n = int(str(self.emprestimo.get("meses", 1)).strip())
             total_juros = float(self.emprestimo.get("juros", 0))
 
             if capital <= 0 or n <= 0:
                 return
 
+            # Principal permanece igual
             pg_principal = capital / n
-            pg_juros = total_juros / n
 
+            # Juros agora considera entrada do usuário
+            juros_base = total_juros / n
+
+            def _parse_val(col):
+                item = self.tabela.item(row, col)
+                if not item:
+                    return 0.0
+                txt = item.text().replace("R$", "").replace(".", "").replace(",", ".").strip()
+                try:
+                    return float(txt) if txt else 0.0
+                except:
+                    return 0.0
+
+            juros_extra = _parse_val(3)   # coluna Juros
+            desconto = _parse_val(4)      # coluna Desconto
+
+            pg_juros = juros_base + juros_extra - desconto
+
+            # Atualiza células
             self.tabela.item(row, 6).setText(self._fmt(pg_principal))
             self.tabela.item(row, 7).setText(self._fmt(pg_juros))
+
         except Exception:
             pass
+
 
 
     def adicionar_parcela(self):
@@ -672,6 +767,7 @@ class ParcelasWindow(QWidget):
         # Valor Pago
         item_pago = QTableWidgetItem("")
         item_pago.setTextAlignment(Qt.AlignCenter)
+        item_pago.setFlags(item_pago.flags() & ~Qt.ItemIsEditable)  # 🔹 bloqueia edição manual
         self.tabela.setItem(nova_linha, 8, item_pago)
 
         # Saldo
@@ -743,3 +839,68 @@ class ParcelasWindow(QWidget):
                 self.on_save_callback()
             self.close()
 
+    def _colorir_linhas(self):
+        """Aplica cor de fonte nas parcelas conforme situação (vencimento/data prevista),
+        mas somente se o saldo da linha não estiver zerado."""
+        from datetime import datetime
+        from PySide6.QtGui import QColor
+
+        hoje = datetime.today()
+
+        for row in range(self.tabela.rowCount() - 1):  # ignora totalizador
+            try:
+                # 🔹 Verifica se saldo está zerado
+                saldo_txt = self.tabela.item(row, 9).text() if self.tabela.item(row, 9) else ""
+                saldo_val = 0.0
+                try:
+                    saldo_val = float(saldo_txt.replace("R$", "").replace(".", "").replace(",", "."))
+                except:
+                    saldo_val = 0.0
+
+                if saldo_val == 0:
+                    continue  # não aplica cor em parcelas já quitadas
+
+                # 🔹 Pega valores da linha
+                vencimento_txt = self.tabela.item(row, 1).text() if self.tabela.item(row, 1) else ""
+                data_prevista_txt = ""
+                from parcelas import parcelas
+                if row < len(parcelas) and len(parcelas[row]) > 13:
+                    data_prevista_txt = parcelas[row][13] or ""
+
+                # 🔹 Converte datas
+                vencimento = None
+                data_prevista = None
+                try:
+                    if vencimento_txt:
+                        vencimento = datetime.strptime(vencimento_txt, "%d/%m/%Y")
+                except:
+                    pass
+                try:
+                    if data_prevista_txt:
+                        data_prevista = datetime.strptime(data_prevista_txt, "%d/%m/%Y")
+                except:
+                    pass
+
+                # 🔹 Define cor apenas se vencimento já passou
+                cor = None
+                if vencimento and hoje < vencimento:
+                    continue  # parcela ainda não venceu → sem cor
+
+                if data_prevista:
+                    if hoje <= data_prevista:
+                        cor = QColor("#FFD966")  # amarelo (texto)
+                    else:
+                        cor = QColor("#F28B82")  # vermelho (texto)
+                elif vencimento:
+                    if hoje > vencimento:
+                        cor = QColor("#F28B82")  # vermelho (texto)
+
+                # 🔹 Aplica cor na linha inteira (texto)
+                if cor:
+                    for col in range(self.tabela.columnCount()):
+                        item = self.tabela.item(row, col)
+                        if item:
+                            item.setForeground(cor)
+
+            except Exception:
+                pass
