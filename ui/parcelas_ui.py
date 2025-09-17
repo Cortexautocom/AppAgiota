@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView,
-    QLabel, QPushButton, QFrame, QAbstractItemView, QLineEdit, QHBoxLayout, QSizePolicy
+    QLabel, QPushButton, QFrame, QAbstractItemView, QLineEdit, QHBoxLayout, QTextEdit
 )
 from PySide6.QtCore import Qt, QRegularExpression
 from PySide6.QtGui import QColor, QFont, QRegularExpressionValidator
@@ -241,6 +241,16 @@ class ParcelasWindow(QWidget):
         # 🔹 Calcula saldo inicial de cada linha
         for row in range(self.tabela.rowCount()):
             try:
+                # Se já existe residual gravado no banco, respeita esse valor
+                residual_item = self.tabela.item(row, 9)
+                residual_txt = residual_item.text().replace("R$", "").replace(".", "").replace(",", ".").strip() if residual_item else ""
+
+                if residual_txt and float(residual_txt or 0) == 0.0:
+                    # Mantém formatado como R$ 0,00
+                    self.tabela.item(row, 9).setText(self._fmt(0.0))
+                    self.tabela.item(row, 9).setTextAlignment(Qt.AlignCenter)
+                    continue
+
                 valor = self._get_valor(row, 2)
                 juros = self._get_valor(row, 3)
                 desconto = self._get_valor(row, 4)
@@ -332,10 +342,10 @@ class ParcelasWindow(QWidget):
 
         layout = QVBoxLayout(dialog)
 
-        # Campo comentário
+        # Campo comentário (QTextEdit, altura de 3 linhas, máx 100 caracteres)
         lbl_coment = QLabel("Comentário (máx. 100):")
-        inp_coment = QLineEdit()
-        inp_coment.setMaxLength(100)
+        inp_coment = QTextEdit()
+        inp_coment.setFixedHeight(60)  # ~3 linhas
         inp_coment.setStyleSheet("background-color:#2c3446; color:white; padding:6px; border-radius:6px;")
         layout.addWidget(lbl_coment)
         layout.addWidget(inp_coment)
@@ -347,6 +357,7 @@ class ParcelasWindow(QWidget):
         regex = QRegularExpression(r"^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4}$")
         validator = QRegularExpressionValidator(regex, inp_data)
         inp_data.setValidator(validator)
+        inp_data.setAlignment(Qt.AlignCenter)
         inp_data.setStyleSheet("background-color:#2c3446; color:white; padding:6px; border-radius:6px;")
         layout.addWidget(lbl_data)
         layout.addWidget(inp_data)
@@ -357,7 +368,7 @@ class ParcelasWindow(QWidget):
             atual = parcelas[row]
             if len(atual) > 14:
                 if atual[14]:  # comentário
-                    inp_coment.setText(atual[14])
+                    inp_coment.setPlainText(atual[14])
                 if atual[13]:  # data_prevista
                     inp_data.setText(atual[13])
 
@@ -366,27 +377,31 @@ class ParcelasWindow(QWidget):
         btn_save.setStyleSheet("background-color:#27ae60; color:white; padding:6px; border-radius:6px; font-weight:bold;")
         layout.addWidget(btn_save)
 
-        def salvar():
-            comentario = inp_coment.text().strip()
-            data_prevista = inp_data.text().strip()
+        # Botão excluir acordo
+        btn_excluir = QPushButton("🗑 Excluir acordo")
+        btn_excluir.setStyleSheet("background-color:#e74c3c; color:white; padding:6px; border-radius:6px; font-weight:bold;")
+        layout.addWidget(btn_excluir)
 
+        def salvar():
+            comentario = inp_coment.toPlainText().strip()[:100]
+            data_prevista = inp_data.text().strip()
+        
             if not data_prevista:
                 QMessageBox.warning(dialog, "Erro", "Informe a data prevista.")
                 return
 
-            # Atualiza a tabela (opcionalmente na mesma coluna Data do Pag.)
-            from PySide6.QtWidgets import QTableWidgetItem
+            # Atualiza a tabela (opcionalmente na mesma coluna Data do Pag.)            
             self.tabela.setItem(row, 10, QTableWidgetItem(data_prevista))
 
             # Atualiza lista em memória pelo ID da parcela
             from parcelas import parcelas, salvar_parcelas, sincronizar_parcelas_upload
             if row < len(parcelas):
-                id_parcela = parcelas[row][0]  # ID real
+                id_parcela = parcelas[row][0]
                 for i, p in enumerate(parcelas):
                     if p[0] == id_parcela:
                         antiga = list(p)
                         if len(antiga) < 15:
-                            antiga.extend(["", ""])  # garante colunas extras
+                            antiga.extend(["", ""])
                         antiga[13] = data_prevista
                         antiga[14] = comentario
                         parcelas[i] = tuple(antiga)
@@ -400,7 +415,40 @@ class ParcelasWindow(QWidget):
             QMessageBox.information(dialog, "Sucesso", "Pagamento adiado com sucesso.")
             dialog.accept()
 
+        def excluir_acordo():
+            reply = QMessageBox.question(
+                dialog,
+                "Excluir acordo",
+                "A exclusão do acordo torna a parcela \"em atraso\", "
+                "e essa informação também é atualizada em seus relatórios.\n\n"
+                "Tem certeza que deseja remover o acordo?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+
+            from parcelas import parcelas, salvar_parcelas, sincronizar_parcelas_upload
+            if row < len(parcelas):
+                id_parcela = parcelas[row][0]
+                for i, p in enumerate(parcelas):
+                    if p[0] == id_parcela:
+                        antiga = list(p)
+                        if len(antiga) < 15:
+                            antiga.extend(["", ""])
+                        antiga[13] = ""  # limpa data_prevista
+                        antiga[14] = ""  # limpa comentário
+                        parcelas[i] = tuple(antiga)
+                        break
+
+            salvar_parcelas(parcelas)
+            sincronizar_parcelas_upload()
+            self._colorir_linhas()
+
+            QMessageBox.information(dialog, "Excluído", "Acordo removido. A parcela voltou a constar como em atraso.")
+            dialog.accept()    
+
         btn_save.clicked.connect(salvar)
+        btn_excluir.clicked.connect(excluir_acordo)
 
         dialog.exec()
 
@@ -409,9 +457,26 @@ class ParcelasWindow(QWidget):
         if not sender:
             return
         row = self.tabela.indexAt(sender.pos()).row()
-        if row >= 0:            
+        if row >= 0:
+            # Marca na memória
             self.linhas_zeradas.add(row)
             self.tabela.item(row, 9).setText(self._fmt(0.0))
+
+            # 🔹 Atualiza também em memória e banco
+            from parcelas import parcelas, salvar_parcelas, sincronizar_parcelas_upload
+            if row < len(parcelas):
+                id_parcela = parcelas[row][0]
+                for i, p in enumerate(parcelas):
+                    if p[0] == id_parcela:
+                        antiga = list(p)
+                        if len(antiga) < 15:
+                            antiga.extend(["", ""])
+                        antiga[10] = self._fmt(0.0)
+                        parcelas[i] = tuple(antiga)
+                        break
+                salvar_parcelas(parcelas)
+                sincronizar_parcelas_upload()
+
 
     def handle_calc_click(self):
         sender = self.sender()
