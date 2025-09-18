@@ -123,9 +123,14 @@ class ParcelasWindow(QWidget):
 
         # 🔹 Carregar parcelas reais
         parcelas_do_emprestimo = carregar_parcelas_por_emprestimo(emprestimo["id"])
+        # 🔹 Ordena antes de popular a tabela
+        try:
+            parcelas_do_emprestimo.sort(key=lambda p: int(p[2]))
+        except Exception:
+            pass
+
         fonte_negrito = QFont()
         fonte_negrito.setBold(True)
-
 
         for linha, parcela in enumerate(parcelas_do_emprestimo):
             (
@@ -134,7 +139,6 @@ class ParcelasWindow(QWidget):
                 valor_pago, residual, data_pag, id_usuario,
                 data_prevista, comentario
             ) = parcela
-
 
             self.tabela.insertRow(linha)
 

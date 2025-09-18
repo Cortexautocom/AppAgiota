@@ -25,7 +25,7 @@ from PySide6.QtGui import QColor
 from ui.financeiro_ui import FinanceiroWindow
 
 # Config
-from config import criar_tabelas_local, get_local_db_path, verificar_tabelas
+from config import criar_tabelas_local, verificar_tabelas
 
 criar_tabelas_local()
 
