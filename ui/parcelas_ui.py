@@ -33,18 +33,21 @@ class ParcelasWindow(QWidget):
         layout.addWidget(lbl)
 
         # 🔹 Linha extra com capital, juros, nº de parcelas e botão ➕
-        capital_txt = self._fmt(float(emprestimo.get("capital", 0)))
-        juros_valor = emprestimo.get("juros", 0) or 0
-        juros_txt = self._fmt(float(juros_valor))
+        capital_valor = float(emprestimo.get("capital", 0) or 0)
+        juros_valor = float(emprestimo.get("juros", 0) or 0)
+
+        capital_txt = self._fmt(capital_valor)
+        juros_txt = self._fmt(juros_valor)
+        montante_txt = self._fmt(capital_valor + juros_valor)
         parcelas_txt = emprestimo.get("meses", "0")
 
         info_layout = QHBoxLayout()
         info_layout.setContentsMargins(0, 0, 0, 0)
 
         lbl_info = QLabel(
-            f"Capital inicial: {capital_txt}    |    "
-            f"Juros iniciais: {juros_txt}    |    "
-            f"Número de parcelas: {parcelas_txt}"
+            f"Montante do empréstimo: {montante_txt} "
+            f"(Capital inicial: {capital_txt} + Juros iniciais: {juros_txt})    "
+            f"|    Número de parcelas: {parcelas_txt}"
         )
         lbl_info.setStyleSheet("font-size: 14px; color: #cccccc; margin-bottom: 8px;")
 
@@ -331,24 +334,44 @@ class ParcelasWindow(QWidget):
 
 
     def abrir_adiar_pagamento(self, row):
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QLabel, QPushButton, QMessageBox, QTextEdit, QLineEdit, QHBoxLayout, QSpacerItem, QSizePolicy
+        )
         from PySide6.QtGui import QRegularExpressionValidator
         from PySide6.QtCore import QRegularExpression
 
         dialog = QDialog(self)
         dialog.setWindowTitle("Adiar Pagamento")
         dialog.setStyleSheet("background-color:#1c2331; color:white;")
-        dialog.setFixedSize(300, 200)
+        dialog.setFixedSize(360, 280)
 
         layout = QVBoxLayout(dialog)
+        layout.setSpacing(2)  # 🔹 bem mais compacto
+        layout.setContentsMargins(12, 10, 12, 10)  # menos margem interna
 
-        # Campo comentário (QTextEdit, altura de 3 linhas, máx 100 caracteres)
+        # Campo comentário
         lbl_coment = QLabel("Comentário (máx. 100):")
         inp_coment = QTextEdit()
-        inp_coment.setFixedHeight(60)  # ~3 linhas
-        inp_coment.setStyleSheet("background-color:#2c3446; color:white; padding:6px; border-radius:6px;")
+        inp_coment.setFixedHeight(70)  # ~3 linhas
+        inp_coment.setStyleSheet("background-color:#2c3446; color:white; padding:4px; border-radius:6px;")
         layout.addWidget(lbl_coment)
         layout.addWidget(inp_coment)
+
+        # 🔹 Limite de caracteres (sem apagar texto já digitado)
+        def limitar_caracteres():
+            texto = inp_coment.toPlainText()
+            if len(texto) > 100:
+                cursor = inp_coment.textCursor()
+                pos = cursor.position()
+                inp_coment.blockSignals(True)
+                inp_coment.setPlainText(texto[:100])
+                inp_coment.blockSignals(False)
+                # mantém o cursor no final do texto
+                if pos > 100:
+                    pos = 100
+                cursor.setPosition(pos)
+                inp_coment.setTextCursor(cursor)
+        inp_coment.textChanged.connect(limitar_caracteres)
 
         # Campo data prevista
         lbl_data = QLabel("Data prevista (dd/mm/aaaa):")
@@ -358,42 +381,47 @@ class ParcelasWindow(QWidget):
         validator = QRegularExpressionValidator(regex, inp_data)
         inp_data.setValidator(validator)
         inp_data.setAlignment(Qt.AlignCenter)
-        inp_data.setStyleSheet("background-color:#2c3446; color:white; padding:6px; border-radius:6px;")
+        inp_data.setStyleSheet("background-color:#2c3446; color:white; padding:4px; border-radius:6px;")
         layout.addWidget(lbl_data)
         layout.addWidget(inp_data)
 
-        # 🔹 Pré-carregar dados já existentes da parcela
+        # 🔹 Espaço extra entre input de data e botões
+        layout.addSpacerItem(QSpacerItem(20, 18, QSizePolicy.Minimum, QSizePolicy.Fixed))
+
+        # Pré-carregar dados já existentes
         from parcelas import parcelas
         if row < len(parcelas):
             atual = parcelas[row]
             if len(atual) > 14:
-                if atual[14]:  # comentário
+                if atual[14]:
                     inp_coment.setPlainText(atual[14])
-                if atual[13]:  # data_prevista
+                if atual[13]:
                     inp_data.setText(atual[13])
 
-        # Botão salvar
+        # Layout de botões lado a lado
+        btn_layout = QHBoxLayout()
+
         btn_save = QPushButton("Salvar")
+        btn_save.setFixedWidth(120)
         btn_save.setStyleSheet("background-color:#27ae60; color:white; padding:6px; border-radius:6px; font-weight:bold;")
-        layout.addWidget(btn_save)
+        btn_layout.addWidget(btn_save)
 
-        # Botão excluir acordo
-        btn_excluir = QPushButton("🗑 Excluir acordo")
+        btn_excluir = QPushButton("Excluir acordo")
+        btn_excluir.setFixedWidth(120)
         btn_excluir.setStyleSheet("background-color:#e74c3c; color:white; padding:6px; border-radius:6px; font-weight:bold;")
-        layout.addWidget(btn_excluir)
+        btn_layout.addWidget(btn_excluir)
 
+        layout.addLayout(btn_layout)
+
+        # === Funções internas (salvar/excluir) — mantêm igual ao que já fizemos ===
         def salvar():
             comentario = inp_coment.toPlainText().strip()[:100]
             data_prevista = inp_data.text().strip()
-        
             if not data_prevista:
                 QMessageBox.warning(dialog, "Erro", "Informe a data prevista.")
                 return
-
-            # Atualiza a tabela (opcionalmente na mesma coluna Data do Pag.)            
+            from PySide6.QtWidgets import QTableWidgetItem
             self.tabela.setItem(row, 10, QTableWidgetItem(data_prevista))
-
-            # Atualiza lista em memória pelo ID da parcela
             from parcelas import parcelas, salvar_parcelas, sincronizar_parcelas_upload
             if row < len(parcelas):
                 id_parcela = parcelas[row][0]
@@ -406,12 +434,9 @@ class ParcelasWindow(QWidget):
                         antiga[14] = comentario
                         parcelas[i] = tuple(antiga)
                         break
-
-            # Salva local + Supabase
             salvar_parcelas(parcelas)
             sincronizar_parcelas_upload()
             self._colorir_linhas()
-
             QMessageBox.information(dialog, "Sucesso", "Pagamento adiado com sucesso.")
             dialog.accept()
 
@@ -426,7 +451,6 @@ class ParcelasWindow(QWidget):
             )
             if reply != QMessageBox.Yes:
                 return
-
             from parcelas import parcelas, salvar_parcelas, sincronizar_parcelas_upload
             if row < len(parcelas):
                 id_parcela = parcelas[row][0]
@@ -435,22 +459,22 @@ class ParcelasWindow(QWidget):
                         antiga = list(p)
                         if len(antiga) < 15:
                             antiga.extend(["", ""])
-                        antiga[13] = ""  # limpa data_prevista
-                        antiga[14] = ""  # limpa comentário
+                        antiga[13] = ""
+                        antiga[14] = ""
                         parcelas[i] = tuple(antiga)
                         break
-
             salvar_parcelas(parcelas)
             sincronizar_parcelas_upload()
             self._colorir_linhas()
-
             QMessageBox.information(dialog, "Excluído", "Acordo removido. A parcela voltou a constar como em atraso.")
-            dialog.accept()    
+            dialog.accept()
 
         btn_save.clicked.connect(salvar)
         btn_excluir.clicked.connect(excluir_acordo)
 
         dialog.exec()
+
+
 
     def handle_zerar_click(self):
         sender = self.sender()
@@ -497,15 +521,18 @@ class ParcelasWindow(QWidget):
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
             item.setBackground(QColor("#4e586e"))
 
-            if col in [2, 3, 4, 6, 7, 8]:
-                item.setFont(fonte_negrito)
-                item.setText("R$ 0,00")
+            # 🔹 aplica negrito em todas as colunas
+            item.setFont(fonte_negrito)
 
-            if col == 5:
+            if col in [2, 3, 4, 6, 7, 8]:
+                item.setText("R$ 0,00")
+            elif col == 5:
+                item.setText("")
+            else:
                 item.setText("")
 
             self.tabela.setItem(row, col, item)
-            item.setTextAlignment(Qt.AlignCenter)
+
 
     def formatar_valores(self, item):
         if not item or item.row() == self.tabela.rowCount() - 1:
@@ -596,7 +623,7 @@ class ParcelasWindow(QWidget):
                 QMessageBox.warning(
                     self,
                     "Parcela parcialmente paga",
-                    "Você não pode sair dessa tela com uma parcela parcialmente paga .\n\n"
+                    "Você não pode sair dessa tela com uma parcela parcialmente paga.\n\n"
                     "Se este cliente fez um acordo, faça os ajustes necessários."
                 )
                 return  # 🔹 Cancela o salvamento, mantém tela ativa
@@ -618,7 +645,6 @@ class ParcelasWindow(QWidget):
                 valor_pago = 0.0
 
             if valor_pago > 0 and not data_pag_txt.strip():
-                from PySide6.QtWidgets import QMessageBox
                 QMessageBox.warning(
                     self,
                     "Data de pagamento obrigatória",
@@ -626,7 +652,31 @@ class ParcelasWindow(QWidget):
                 )
                 return  # 🔹 Cancela salvamento
 
+        # 🔹 Validação: se Data de Pagamento foi inserida mas Valor Pago está vazio
+        for linha in range(self.tabela.rowCount() - 1):
+            valor_pago_txt = self.tabela.item(linha, 8).text() if self.tabela.item(linha, 8) else ""
+            data_pag_txt = ""
 
+            widget = self.tabela.cellWidget(linha, 10)
+            if widget:
+                data_pag_txt = widget.text()
+            elif self.tabela.item(linha, 10):
+                data_pag_txt = self.tabela.item(linha, 10).text()
+
+            try:
+                valor_pago = float(valor_pago_txt.replace("R$", "").replace(".", "").replace(",", ".").strip() or 0)
+            except:
+                valor_pago = 0.0
+
+            if data_pag_txt.strip() and valor_pago == 0:
+                QMessageBox.warning(
+                    self,
+                    "Valor pago obrigatório",
+                    "Você deixou alguma parcela com data de pagamento registrada, "
+                    "mas sem ter inserido o valor pago.\n\n"
+                    "Insira os valores ou remova a data de pagamento antes de salvar."
+                )
+                return  # 🔹 Cancela salvamento
 
         # 🔹 Monta lista de parcelas atualizada
         novas_parcelas = []
@@ -684,6 +734,7 @@ class ParcelasWindow(QWidget):
         if self.on_save_callback:
             self.on_save_callback()
         self.close()
+
 
 
 

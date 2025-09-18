@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
 from ui.parcelas_ui import ParcelasWindow
+from datetime import datetime
 
 # Importa função para carregar empréstimos reais
 from emprestimos import carregar_emprestimos
@@ -150,6 +151,24 @@ class FinanceiroWindow(QWidget):
             }
         """)
 
+        header = tabela.horizontalHeader()
+
+        # Parcelas → largura para até 2 dígitos (ex: "99")
+        header.setSectionResizeMode(4, QHeaderView.Fixed)
+        tabela.setColumnWidth(4, 60)
+
+        # Taxa → largura para até 6 caracteres (ex: "99,99%")
+        header.setSectionResizeMode(6, QHeaderView.Fixed)
+        tabela.setColumnWidth(6, 80)
+
+        # Status → usa o espaço que sobrar
+        header.setSectionResizeMode(7, QHeaderView.Stretch)
+
+        # As demais colunas continuam elásticas
+        for col in [1, 2, 3, 5]:  # Data inicial, Último venc., Valor, Juros
+            header.setSectionResizeMode(col, QHeaderView.Stretch)
+
+
         # 🔹 Carregar empréstimos reais do cliente
         todos_emprestimos = carregar_emprestimos()
         emprestimos_cliente = [e for e in todos_emprestimos if e[1] == self.client_data[0]]
@@ -171,8 +190,15 @@ class FinanceiroWindow(QWidget):
             # Último venc. (maior vencimento das parcelas)
             from parcelas import carregar_parcelas_por_emprestimo
             parcelas_emp = carregar_parcelas_por_emprestimo(emp[0])  # emp[0] = id do empréstimo
-            datas_venc = [p[4] for p in parcelas_emp if p[4]]  # índice 4 = vencimento
-            ultimo_venc = max(datas_venc) if datas_venc else ""
+            datas_venc = []
+            for p in parcelas_emp:
+                if p[4]:
+                    try:
+                        datas_venc.append(datetime.strptime(p[4], "%d/%m/%Y"))
+                    except:
+                        pass
+
+            ultimo_venc = max(datas_venc).strftime("%d/%m/%Y") if datas_venc else ""
             item_ultimo = QTableWidgetItem(ultimo_venc)
             item_ultimo.setFlags(item_ultimo.flags() & ~Qt.ItemIsEditable)
             item_ultimo.setTextAlignment(Qt.AlignCenter)
@@ -211,10 +237,53 @@ class FinanceiroWindow(QWidget):
             tabela.setItem(linha, 6, item_taxa)
 
             # Status
-            status = "Em andamento"
+            # Status (analisa parcelas do empréstimo)
+            status = "Em dia"
+            cor_status = Qt.green
+            hoje = datetime.today()
+
+            for p in parcelas_emp:
+                (
+                    _id, _id_emp, num, valor, venc,
+                    juros, desconto, pg_principal, pg_juros,
+                    valor_pago, residual, data_pag, _id_usuario,
+                    data_prevista, comentario
+                ) = p
+
+                # Ignora parcelas já quitadas
+                if valor_pago and str(valor_pago).strip() not in ("", "0", "R$ 0,00"):
+                    continue
+
+                # Converte datas
+                venc_dt = None
+                prev_dt = None
+                try:
+                    if venc:
+                        venc_dt = datetime.strptime(venc, "%d/%m/%Y")
+                except:
+                    pass
+                try:
+                    if data_prevista:
+                        prev_dt = datetime.strptime(data_prevista, "%d/%m/%Y")
+                except:
+                    pass
+
+                # Regra 1: vencida e sem renegociação
+                if venc_dt and hoje > venc_dt and not prev_dt:
+                    status = "Parcela em atraso"
+                    cor_status = Qt.red
+                    break  # já é o pior caso, não precisa continuar
+
+                # Regra 2: vencida mas com renegociação
+                if venc_dt and hoje > venc_dt and prev_dt:
+                    status = "Parcela adiada"
+                    cor_status = QColor("#FFD966")  # amarelo
+                    # não dá break porque pode ter outra pior (atrasada sem acordo)
+
+            # Preenche célula de status
             item_status = QTableWidgetItem(status)
             item_status.setFlags(item_status.flags() & ~Qt.ItemIsEditable)
-            item_status.setForeground(Qt.green)
+            item_status.setForeground(cor_status)
             item_status.setTextAlignment(Qt.AlignCenter)
             tabela.setItem(linha, 7, item_status)
 
@@ -616,7 +685,7 @@ class FinanceiroWindow(QWidget):
         from ui.arquivados_ui import ArquivadosWindow
         self.arquivados_window = ArquivadosWindow(
             self.client_data,
-            id_usuario=self.parent().id_usuario,  # ✅ aqui vem do ModernWindow
+            id_usuario=self.parent().id_usuario,
             parent=self
         )
         self._set_content(self.arquivados_window)
