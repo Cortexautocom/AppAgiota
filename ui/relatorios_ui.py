@@ -3,13 +3,13 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QComboBox, QTableWidget, QHeaderView, QTableWidgetItem, QSpacerItem, QSizePolicy
 )
+from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt
 
+# Importações de dados
 from parcelas import carregar_parcelas
 from emprestimos import carregar_emprestimos
 from clientes import carregar_clientes
-from PySide6.QtGui import QFont
-
-from PySide6.QtCore import Qt
 
 
 class RelatoriosWindow(QWidget):
@@ -18,18 +18,17 @@ class RelatoriosWindow(QWidget):
         self.setStyleSheet("background-color: #1c2331; color: white;")
         self.setWindowTitle("Relatórios")
 
-        layout = QVBoxLayout(self)
+        self.layout_principal = QVBoxLayout(self)
 
         # 🔹 Título
         title = QLabel("📊 Relatórios")
         title.setStyleSheet("font-size: 20px; font-weight: bold; color: white;")
-        layout.addWidget(title)
+        self.layout_principal.addWidget(title)
 
         # 🔹 Linha de filtros
         filtro_layout = QHBoxLayout()
         filtro_layout.setAlignment(Qt.AlignLeft)
 
-        # ComboBox principal - Tipo
         lbl_tipo = QLabel("Tipo:")
         self.cb_tipo = QComboBox()
         self.cb_tipo.addItems([
@@ -37,25 +36,8 @@ class RelatoriosWindow(QWidget):
             "Empréstimos (com parcelas em atraso)",
             "Empréstimos (com renegociação)",
             "Empréstimos (em dia)"
-        ])        
-        self.cb_tipo.setStyleSheet("""
-            QComboBox {
-                background-color:#2c3446;
-                color:white;
-                padding:6px;
-                border-radius:6px;
-            }
-            QComboBox QAbstractItemView {
-                background-color:#2c3446;
-                color:white;
-                selection-background-color:#374157;
-            }
-        """)
-
-        filtro_layout.addWidget(lbl_tipo)
-        filtro_layout.addWidget(self.cb_tipo)
-
-        # ComboBox secundário - Mostrar (Capital, Juros, Capital + Juros)
+        ])
+        
         lbl_mostrar = QLabel("Mostrar:")
         self.cb_mostrar = QComboBox()
         self.cb_mostrar.addItems([
@@ -63,24 +45,39 @@ class RelatoriosWindow(QWidget):
             "Juros",
             "Capital + Juros"
         ])
-        self.cb_mostrar.setCurrentIndex(2)  # começa em "Capital + Juros"
-        self.cb_mostrar.setStyleSheet(self.cb_tipo.styleSheet())
+        self.cb_mostrar.setCurrentIndex(2)
 
+        for cb in [self.cb_tipo, self.cb_mostrar]:
+            cb.setStyleSheet("""
+                QComboBox {
+                    background-color:#2c3446;
+                    color:white;
+                    padding:6px;
+                    border-radius:6px;
+                }
+                QComboBox QAbstractItemView {
+                    background-color:#2c3446;
+                    color:white;
+                    selection-background-color:#374157;
+                }
+            """)
+        
+        filtro_layout.addWidget(lbl_tipo)
+        filtro_layout.addWidget(self.cb_tipo)
         filtro_layout.addWidget(lbl_mostrar)
         filtro_layout.addWidget(self.cb_mostrar)
+        self.layout_principal.addLayout(filtro_layout)
 
-        layout.addLayout(filtro_layout)
-
-        # 🔹 Tabela principal (Cliente, Capital, Juros)
-        self.tabela = QTableWidget(0, 3)
-        self.tabela.setHorizontalHeaderLabels(["Cliente", "Capital", "Juros"])
+        # 🔹 Tabela principal
+        self.tabela = QTableWidget()
+        self.tabela.setEditTriggers(QTableWidget.NoEditTriggers)
         self.tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.tabela.verticalHeader().setVisible(False)
 
         header = self.tabela.horizontalHeader()
-        header.setSectionsClickable(True)      # permite clicar no título
-        header.setSortIndicatorShown(True)     # mostra a setinha
-        self.tabela.setSortingEnabled(True)    # habilita ordenação
+        header.setSectionsClickable(True)
+        header.setSortIndicatorShown(True)
+        self.tabela.setSortingEnabled(True)
 
         self.tabela.setStyleSheet("""
             QTableWidget {
@@ -96,201 +93,208 @@ class RelatoriosWindow(QWidget):
                 border: none;
             }
         """)
-        layout.addWidget(self.tabela)
+        self.layout_principal.addWidget(self.tabela)
 
-        # 🔹 Conexões (mudança instantânea)
+        # 🔹 Totalizador e spacer
+        self.tabela_total = None
+        self.spacer_total = None
+        self.totalizador_layout = None # Adicione esta linha
+
+        # 🔹 Conexões e carregamento inicial
         self.cb_tipo.currentIndexChanged.connect(self.carregar_dados)
-        self.cb_mostrar.currentIndexChanged.connect(self.carregar_dados)
-        # 🔹 Define padrão inicial: "Parcelas em aberto" + "Capital + Juros"
-        self.cb_tipo.setCurrentText("Parcelas em aberto")
-        self.cb_mostrar.setCurrentText("Capital + Juros")
+        self.cb_mostrar.currentIndexChanged.connect(self._ajusta_visibilidade_colunas)
         self.carregar_dados()
 
-
     def carregar_dados(self):
-        """Decide qual relatório exibir conforme o filtro selecionado."""
+        """Popula a tabela e o totalizador com base no filtro selecionado."""
+        self.tabela.setSortingEnabled(False)
+        self.remover_widgets_dinamicos()
+
         filtro = self.cb_tipo.currentText()
-        self.tabela.setRowCount(0)
-        self.tabela.setColumnCount(4)
-        self.tabela.setHorizontalHeaderLabels(["Cliente", "Nº", "Capital", "Juros"])
-
         if filtro == "Parcelas em aberto":
-            self._mostrar_parcelas_em_aberto()
-        elif filtro == "Empréstimos (com parcelas em atraso)":
-            # será implementado depois
-            pass
-        elif filtro == "Empréstimos (com renegociação)":
-            pass
-        elif filtro == "Empréstimos (em dia)":
-            pass
+            self._popula_tabela_parcelas_em_aberto()
+        # outros filtros virão aqui...
 
-        # 🔹 Ordena sempre por Cliente
+        self.tabela.setSortingEnabled(True)
         self.tabela.sortItems(0, Qt.AscendingOrder)
+    
+    def remover_widgets_dinamicos(self):
+        """Remove o totalizador, independentemente do tipo, e o spacer."""
+        # Remove a tabela de totalização antiga, se existir
+        if hasattr(self, "tabela_total") and self.tabela_total is not None:
+            if self.tabela_total.parent():
+                self.layout_principal.removeWidget(self.tabela_total)
+            self.tabela_total.deleteLater()
+            self.tabela_total = None
 
-
-    # Métodos ainda a implementar
-    def _mostrar_parcelas_em_aberto(self): pass
-    def _mostrar_parcelas_recebidas(self): pass
-    def _mostrar_emprestimos_ativos(self): pass
-    def _mostrar_emprestimos_arquivados(self): pass
-    def _mostrar_ranking_clientes(self): pass
+        # Remove o layout de totalização novo, se existir
+        if hasattr(self, "totalizador_layout") and self.totalizador_layout is not None:
+            while self.totalizador_layout.count():
+                item = self.totalizador_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+            self.layout_principal.removeItem(self.totalizador_layout)
+            self.totalizador_layout = None
+            
+        # Remove o spacer
+        if hasattr(self, "spacer_total") and self.spacer_total is not None:
+            self.layout_principal.removeItem(self.spacer_total)
+            self.spacer_total = None
 
     def _fmt_br(self, valor):
         """Formata valor float no padrão brasileiro R$ 0,00"""
         try:
             return f"R$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        except:
+        except (ValueError, TypeError):
             return "R$ 0,00"
 
+    def _popula_tabela_parcelas_em_aberto(self):
+        """Carrega e exibe os dados das parcelas em aberto."""
+        self.tabela.clearContents()
+        self.tabela.setRowCount(0)
+        self.tabela.setColumnCount(5)
+        self.tabela.setHorizontalHeaderLabels(["Cliente", "Nº", "Capital", "Juros", "Saldo"])
 
-
-    def _mostrar_parcelas_em_aberto(self):
-        """Mostra todas as parcelas em aberto (não pagas)."""
-        
-        # Desativa temporariamente a ordenação para permitir a adição da linha de total
-        self.tabela.setSortingEnabled(False) 
-
-        # Carregar dados
         todas_parcelas = carregar_parcelas()
-        emprestimos = {e[0]: e for e in carregar_emprestimos() if e[9] == "sim"}  # só ativos
-        clientes = {c[0]: c[1] for c in carregar_clientes()}  # id_cliente → nome
+        emprestimos = {e[0]: e for e in carregar_emprestimos() if e[9] == "sim"}
+        clientes = {c[0]: c[1] for c in carregar_clientes()}
 
-        linhas = []
+        dados = []
         total_capital = 0.0
         total_juros = 0.0
 
         for p in todas_parcelas:
             (
-                _id, id_emp, num, valor, venc,
-                juros, desconto, pg_principal, pg_juros,
-                valor_pago, residual, data_pag, id_usuario,
-                data_prevista, comentario
+                _id, id_emp, num, _, _,
+                _, _, _, _,
+                valor_pago, _, _, _,
+                _, _
             ) = p
 
-            if id_emp not in emprestimos:
-                continue
-
-            # em aberto se não pago ou residual > 0
-            pago = bool(valor_pago and str(valor_pago).strip() not in ("", "0", "R$ 0,00"))
-            if pago:
+            pago = valor_pago and str(valor_pago).strip() not in ("", "0", "R$ 0,00")
+            if pago or id_emp not in emprestimos:
                 continue
 
             emp = emprestimos[id_emp]
             id_cliente = emp[1]
             nome_cliente = clientes.get(id_cliente, "Desconhecido")
 
-            # Verifica se a parcela já foi paga (não deveria cair aqui, mas deixamos a lógica genérica)
-            pago = bool(valor_pago and str(valor_pago).strip() not in ("", "0", "R$ 0,00"))
+            try:
+                capital_total_emp = float(emp[2]) if emp[2] else 0.0
+                meses = int(emp[4]) if emp[4] else 1
+                juros_total_emp = float(emp[6]) if emp[6] else 0.0
+            except (ValueError, IndexError):
+                capital_total_emp = 0.0
+                meses = 1
+                juros_total_emp = 0.0
+            
+            capital_parc = capital_total_emp / meses if meses > 0 else 0.0
+            juros_parc = juros_total_emp / meses if meses > 0 else 0.0
+            saldo_parc = capital_parc + juros_parc
 
-            # Guardamos os dados para preencher depois
-            linhas.append((nome_cliente, pg_principal, pg_juros, pago, emp, num))            
+            dados.append((nome_cliente, num, capital_parc, juros_parc, saldo_parc))
+            total_capital += capital_parc
+            total_juros += juros_parc
+
         
-        # Ajustado para acomodar apenas a linha de total
-        self.tabela.setRowCount(len(linhas))
-        self.tabela.setColumnCount(4)
-        self.tabela.setHorizontalHeaderLabels(["Cliente", "Nº", "Capital", "Juros"])
 
-
-        for i, (nome, cap, jur, pago, emp, num) in enumerate(linhas):
-            # 🔹 Se já foi paga → usa os valores do banco
-            if pago:
-                cap_fmt = self._fmt_br(cap)
-                jur_fmt = self._fmt_br(jur)
-            else:
-                # 🔹 Se ainda não foi paga → recalcula como no botão ⚡
-                try:
-                    capital_total = float(emp[2]) if emp[2] else 0.0
-                except:
-                    capital_total = 0.0
-                try:
-                    meses = int(emp[4]) if emp[4] else 1
-                except:
-                    meses = 1
-                try:
-                    juros_total = float(emp[6]) if emp[6] else 0.0
-                except:
-                    juros_total = 0.0
-
-                cap_fmt = self._fmt_br(capital_total / meses if meses > 0 else 0.0)
-                jur_fmt = self._fmt_br(juros_total / meses if meses > 0 else 0.0)
-
-            # Preenche células e define o alinhamento central
+        self.tabela.setRowCount(len(dados))
+        for i, (nome, num, cap, jur, sal) in enumerate(dados):
             nome_item = QTableWidgetItem(nome)
             nome_item.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(i, 0, nome_item)
-
+            
             num_item = QTableWidgetItem(str(num))
             num_item.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(i, 1, num_item)
-
-            cap_item = QTableWidgetItem(cap_fmt)
+            
+            cap_item = QTableWidgetItem(self._fmt_br(cap))
             cap_item.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(i, 2, cap_item)
-
-            jur_item = QTableWidgetItem(jur_fmt)
+            
+            jur_item = QTableWidgetItem(self._fmt_br(jur))
             jur_item.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(i, 3, jur_item)
+            
+            sal_item = QTableWidgetItem(self._fmt_br(sal))
+            sal_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 4, sal_item)
 
-            # Acumula para totalizador (essa parte precisa estar dentro do loop)
-            try:
-                total_capital += float(cap_fmt.replace("R$", "").replace(".", "").replace(",", "."))
-            except:
-                pass
-            try:
-                total_juros += float(jur_fmt.replace("R$", "").replace(".", "").replace(",", "."))
-            except:
-                pass
-        
-        # 🔹 Espaço em branco entre a tabela e o totalizador        
-        self.layout().addSpacerItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
+        self._cria_e_popula_totalizador(total_capital, total_juros)
+        self._ajusta_visibilidade_colunas()
 
-        # 🔹 Cria uma tabela separada só para o totalizador
-        self.tabela_total = QTableWidget(1, 4)
-        self.tabela_total.horizontalHeader().setVisible(False)
-        self.tabela_total.verticalHeader().setVisible(False)
-        self.tabela_total.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.tabela_total.setFixedHeight(40)
-        self.tabela_total.setStyleSheet(self.tabela.styleSheet())
+    def _cria_e_popula_totalizador(self, total_capital, total_juros):
+        """Cria e adiciona o totalizador ao layout usando labels."""
+        self.spacer_total = QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed)
+        self.layout_principal.addSpacerItem(self.spacer_total)
+
+        self.totalizador_layout = QHBoxLayout()
+        self.totalizador_layout.setSpacing(0)
 
         fonte_negrito = QFont()
         fonte_negrito.setBold(True)
-
-        item_total = QTableWidgetItem("TOTAL")
-        item_total.setFont(fonte_negrito)
-        item_total.setTextAlignment(Qt.AlignCenter)
-        self.tabela_total.setItem(0, 0, item_total)
-
-        self.tabela_total.setItem(0, 1, QTableWidgetItem(""))
-
-        cap_item = QTableWidgetItem(self._fmt_br(total_capital))
-        cap_item.setFont(fonte_negrito)
-        cap_item.setTextAlignment(Qt.AlignCenter)
-        self.tabela_total.setItem(0, 2, cap_item)
-
-        jur_item = QTableWidgetItem(self._fmt_br(total_juros))
-        jur_item.setFont(fonte_negrito)
-        jur_item.setTextAlignment(Qt.AlignCenter)
-        self.tabela_total.setItem(0, 3, jur_item)
-
-        # Adiciona a tabelinha de total abaixo da principal
-        self.layout().addWidget(self.tabela_total)
-
         
-        # Ajusta colunas conforme filtro "Mostrar"
+        lbl_total_titulo = QLabel("TOTAL:")
+        lbl_total_titulo.setFont(fonte_negrito)
+        lbl_total_titulo.setAlignment(Qt.AlignCenter)
+
+        lbl_capital_total = QLabel(self._fmt_br(total_capital))
+        lbl_capital_total.setFont(fonte_negrito)
+        lbl_capital_total.setAlignment(Qt.AlignCenter)
+
+        lbl_juros_total = QLabel(self._fmt_br(total_juros))
+        lbl_juros_total.setFont(fonte_negrito)
+        lbl_juros_total.setAlignment(Qt.AlignCenter)
+
+        saldo_total = total_capital + total_juros
+        lbl_saldo_total = QLabel(self._fmt_br(saldo_total))
+        lbl_saldo_total.setFont(fonte_negrito)
+        lbl_saldo_total.setAlignment(Qt.AlignCenter)
+
+        self.totalizador_layout.addWidget(lbl_total_titulo, 1) # Proporção 1
+        self.totalizador_layout.addStretch(1) # Espaçador para alinhamento
+        self.totalizador_layout.addWidget(lbl_capital_total, 1) # Proporção 1
+        self.totalizador_layout.addWidget(lbl_juros_total, 1) # Proporção 1
+        self.totalizador_layout.addWidget(lbl_saldo_total, 1) # Proporção 1
+
+        self.layout_principal.addLayout(self.totalizador_layout)
+
+        # Guarda referências para poder atualizar depois
+        self.lbl_capital_total = lbl_capital_total
+        self.lbl_juros_total = lbl_juros_total
+        self.lbl_saldo_total = lbl_saldo_total
+
+        # Aplica visibilidade inicial
+        self._atualiza_totalizador()
+
+    def _atualiza_totalizador(self):
+        """Atualiza a visibilidade dos rótulos do totalizador conforme o filtro 'Mostrar'."""
+        mostrar = self.cb_mostrar.currentText()
+        if hasattr(self, "lbl_capital_total"):
+            self.lbl_capital_total.setHidden(mostrar == "Juros")
+        if hasattr(self, "lbl_juros_total"):
+            self.lbl_juros_total.setHidden(mostrar == "Capital")
+        if hasattr(self, "lbl_saldo_total"):
+            self.lbl_saldo_total.setHidden(mostrar != "Capital + Juros")
+
+    def _ajusta_visibilidade_colunas(self):
+        """Ajusta a visibilidade das colunas com base no ComboBox 'Mostrar'."""
         mostrar = self.cb_mostrar.currentText()
         if mostrar == "Capital":
-            # Cliente (0) e Nº (1) sempre visíveis
-            self.tabela.setColumnHidden(2, False)  # Capital
-            self.tabela.setColumnHidden(3, True)   # Juros
+            self.tabela.setColumnHidden(2, False)
+            self.tabela.setColumnHidden(3, True)
+            self.tabela.setColumnHidden(4, True)  # Oculta a coluna de saldo
         elif mostrar == "Juros":
-            self.tabela.setColumnHidden(2, True)   # Capital
-            self.tabela.setColumnHidden(3, False)  # Juros
+            self.tabela.setColumnHidden(2, True)
+            self.tabela.setColumnHidden(3, False)
+            self.tabela.setColumnHidden(4, True)  # Oculta a coluna de saldo
         else:  # Capital + Juros
             self.tabela.setColumnHidden(2, False)
             self.tabela.setColumnHidden(3, False)
-        
-        self.layout().addSpacerItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
+            self.tabela.setColumnHidden(4, False) # Exibe a coluna de saldo
 
-        # Reativa a ordenação após o preenchimento total e aplica a ordenação inicial
-        self.tabela.setSortingEnabled(True)
-        self.tabela.sortItems(0, Qt.AscendingOrder)
+        for col in range(5):
+            if self.tabela_total:
+                self.tabela_total.setColumnHidden(col, self.tabela.isColumnHidden(col))
+
+        self._atualiza_totalizador()
