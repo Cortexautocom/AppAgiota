@@ -1,8 +1,14 @@
 # ui/relatorios_ui.py
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QComboBox, QTableWidget, QHeaderView, QTableWidgetItem
+    QComboBox, QTableWidget, QHeaderView, QTableWidgetItem, QSpacerItem, QSizePolicy
 )
+
+from parcelas import carregar_parcelas
+from emprestimos import carregar_emprestimos
+from clientes import carregar_clientes
+from PySide6.QtGui import QFont
+
 from PySide6.QtCore import Qt
 
 
@@ -28,11 +34,10 @@ class RelatoriosWindow(QWidget):
         self.cb_tipo = QComboBox()
         self.cb_tipo.addItems([
             "Parcelas em aberto",
-            "Parcelas recebidas",
-            "Empréstimos Ativos",
-            "Empréstimos Arquivados",
-            "Clientes x Dívida (Ranking)"
-        ])
+            "Empréstimos (com parcelas em atraso)",
+            "Empréstimos (com renegociação)",
+            "Empréstimos (em dia)"
+        ])        
         self.cb_tipo.setStyleSheet("""
             QComboBox {
                 background-color:#2c3446;
@@ -71,6 +76,12 @@ class RelatoriosWindow(QWidget):
         self.tabela.setHorizontalHeaderLabels(["Cliente", "Capital", "Juros"])
         self.tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.tabela.verticalHeader().setVisible(False)
+
+        header = self.tabela.horizontalHeader()
+        header.setSectionsClickable(True)      # permite clicar no título
+        header.setSortIndicatorShown(True)     # mostra a setinha
+        self.tabela.setSortingEnabled(True)    # habilita ordenação
+
         self.tabela.setStyleSheet("""
             QTableWidget {
                 background-color: #2c3446;
@@ -103,17 +114,19 @@ class RelatoriosWindow(QWidget):
         self.tabela.setColumnCount(4)
         self.tabela.setHorizontalHeaderLabels(["Cliente", "Nº", "Capital", "Juros"])
 
-
         if filtro == "Parcelas em aberto":
             self._mostrar_parcelas_em_aberto()
-        elif filtro == "Parcelas recebidas":
-            self._mostrar_parcelas_recebidas()
-        elif filtro == "Empréstimos Ativos":
-            self._mostrar_emprestimos_ativos()
-        elif filtro == "Empréstimos Arquivados":
-            self._mostrar_emprestimos_arquivados()
-        elif filtro == "Clientes x Dívida (Ranking)":
-            self._mostrar_ranking_clientes()
+        elif filtro == "Empréstimos (com parcelas em atraso)":
+            # será implementado depois
+            pass
+        elif filtro == "Empréstimos (com renegociação)":
+            pass
+        elif filtro == "Empréstimos (em dia)":
+            pass
+
+        # 🔹 Ordena sempre por Cliente
+        self.tabela.sortItems(0, Qt.AscendingOrder)
+
 
     # Métodos ainda a implementar
     def _mostrar_parcelas_em_aberto(self): pass
@@ -133,11 +146,9 @@ class RelatoriosWindow(QWidget):
 
     def _mostrar_parcelas_em_aberto(self):
         """Mostra todas as parcelas em aberto (não pagas)."""
-        from parcelas import carregar_parcelas
-        from emprestimos import carregar_emprestimos
-        from clientes import carregar_clientes
-        from PySide6.QtWidgets import QTableWidgetItem
-        from PySide6.QtGui import QFont
+        
+        # Desativa temporariamente a ordenação para permitir a adição da linha de total
+        self.tabela.setSortingEnabled(False) 
 
         # Carregar dados
         todas_parcelas = carregar_parcelas()
@@ -172,11 +183,10 @@ class RelatoriosWindow(QWidget):
             pago = bool(valor_pago and str(valor_pago).strip() not in ("", "0", "R$ 0,00"))
 
             # Guardamos os dados para preencher depois
-            linhas.append((nome_cliente, pg_principal, pg_juros, pago, emp, num))        
-            
-
-        # Monta a tabela (+1 linha em branco, +1 linha totalizadora)
-        self.tabela.setRowCount(len(linhas) + 2)
+            linhas.append((nome_cliente, pg_principal, pg_juros, pago, emp, num))            
+        
+        # Ajustado para acomodar apenas a linha de total
+        self.tabela.setRowCount(len(linhas))
         self.tabela.setColumnCount(4)
         self.tabela.setHorizontalHeaderLabels(["Cliente", "Nº", "Capital", "Juros"])
 
@@ -204,19 +214,24 @@ class RelatoriosWindow(QWidget):
                 cap_fmt = self._fmt_br(capital_total / meses if meses > 0 else 0.0)
                 jur_fmt = self._fmt_br(juros_total / meses if meses > 0 else 0.0)
 
-            # Preenche células
-            self.tabela.setItem(i, 0, QTableWidgetItem(nome))
-            self.tabela.setItem(i, 1, QTableWidgetItem(str(num)))
-            self.tabela.setItem(i, 2, QTableWidgetItem(cap_fmt))
-            self.tabela.setItem(i, 3, QTableWidgetItem(jur_fmt))
+            # Preenche células e define o alinhamento central
+            nome_item = QTableWidgetItem(nome)
+            nome_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 0, nome_item)
 
-        for row in range(self.tabela.rowCount()):
-            for col in range(self.tabela.columnCount()):
-                item = self.tabela.item(row, col)
-                if item:
-                    item.setTextAlignment(Qt.AlignCenter)
+            num_item = QTableWidgetItem(str(num))
+            num_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 1, num_item)
 
-            # Acumula para totalizador
+            cap_item = QTableWidgetItem(cap_fmt)
+            cap_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 2, cap_item)
+
+            jur_item = QTableWidgetItem(jur_fmt)
+            jur_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 3, jur_item)
+
+            # Acumula para totalizador (essa parte precisa estar dentro do loop)
             try:
                 total_capital += float(cap_fmt.replace("R$", "").replace(".", "").replace(",", "."))
             except:
@@ -225,34 +240,41 @@ class RelatoriosWindow(QWidget):
                 total_juros += float(jur_fmt.replace("R$", "").replace(".", "").replace(",", "."))
             except:
                 pass
+        
+        # 🔹 Espaço em branco entre a tabela e o totalizador        
+        self.layout().addSpacerItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
-        # Linha em branco
-        row_blank = len(linhas)
-        for col in range(3):
-            self.tabela.setItem(row_blank, col, QTableWidgetItem(""))
+        # 🔹 Cria uma tabela separada só para o totalizador
+        self.tabela_total = QTableWidget(1, 4)
+        self.tabela_total.horizontalHeader().setVisible(False)
+        self.tabela_total.verticalHeader().setVisible(False)
+        self.tabela_total.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.tabela_total.setFixedHeight(40)
+        self.tabela_total.setStyleSheet(self.tabela.styleSheet())
 
-        # Linha totalizadora (em negrito)
-        row_total = len(linhas) + 1
         fonte_negrito = QFont()
         fonte_negrito.setBold(True)
 
         item_total = QTableWidgetItem("TOTAL")
         item_total.setFont(fonte_negrito)
         item_total.setTextAlignment(Qt.AlignCenter)
-        self.tabela.setItem(row_total, 0, item_total)
+        self.tabela_total.setItem(0, 0, item_total)
 
-        # Coluna Nº em branco
-        self.tabela.setItem(row_total, 1, QTableWidgetItem(""))
+        self.tabela_total.setItem(0, 1, QTableWidgetItem(""))
 
         cap_item = QTableWidgetItem(self._fmt_br(total_capital))
         cap_item.setFont(fonte_negrito)
         cap_item.setTextAlignment(Qt.AlignCenter)
-        self.tabela.setItem(row_total, 2, cap_item)
+        self.tabela_total.setItem(0, 2, cap_item)
 
         jur_item = QTableWidgetItem(self._fmt_br(total_juros))
         jur_item.setFont(fonte_negrito)
         jur_item.setTextAlignment(Qt.AlignCenter)
-        self.tabela.setItem(row_total, 3, jur_item)
+        self.tabela_total.setItem(0, 3, jur_item)
+
+        # Adiciona a tabelinha de total abaixo da principal
+        self.layout().addWidget(self.tabela_total)
+
         
         # Ajusta colunas conforme filtro "Mostrar"
         mostrar = self.cb_mostrar.currentText()
@@ -266,5 +288,9 @@ class RelatoriosWindow(QWidget):
         else:  # Capital + Juros
             self.tabela.setColumnHidden(2, False)
             self.tabela.setColumnHidden(3, False)
+        
+        self.layout().addSpacerItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
-
+        # Reativa a ordenação após o preenchimento total e aplica a ordenação inicial
+        self.tabela.setSortingEnabled(True)
+        self.tabela.sortItems(0, Qt.AscendingOrder)
