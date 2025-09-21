@@ -13,6 +13,8 @@ from clientes import carregar_clientes
 
 
 class RelatoriosWindow(QWidget):
+    ultima_escolha_tipo = None   # 🔹 guarda última escolha de relatório
+    ultima_escolha_mostrar = None
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet("background-color: #1c2331; color: white;")
@@ -37,7 +39,7 @@ class RelatoriosWindow(QWidget):
             "Empréstimos (com renegociação)",
             "Empréstimos (em dia)"
         ])
-        
+
         lbl_mostrar = QLabel("Mostrar:")
         self.cb_mostrar = QComboBox()
         self.cb_mostrar.addItems([
@@ -45,7 +47,20 @@ class RelatoriosWindow(QWidget):
             "Juros",
             "Capital + Juros"
         ])
-        self.cb_mostrar.setCurrentIndex(2)
+
+        # 🔹 Restaura última escolha, se houver
+        if RelatoriosWindow.ultima_escolha_tipo:
+            idx = self.cb_tipo.findText(RelatoriosWindow.ultima_escolha_tipo)
+            if idx >= 0:
+                self.cb_tipo.setCurrentIndex(idx)
+
+        if RelatoriosWindow.ultima_escolha_mostrar:
+            idx = self.cb_mostrar.findText(RelatoriosWindow.ultima_escolha_mostrar)
+            if idx >= 0:
+                self.cb_mostrar.setCurrentIndex(idx)
+        else:
+            self.cb_mostrar.setCurrentIndex(2)  # padrão Capital+Juros
+
 
         for cb in [self.cb_tipo, self.cb_mostrar]:
             cb.setStyleSheet("""
@@ -106,7 +121,9 @@ class RelatoriosWindow(QWidget):
         self.carregar_dados()
 
     def carregar_dados(self):
-        """Popula a tabela e o totalizador com base no filtro selecionado."""
+        RelatoriosWindow.ultima_escolha_tipo = self.cb_tipo.currentText()
+        RelatoriosWindow.ultima_escolha_mostrar = self.cb_mostrar.currentText()
+        
         self.tabela.setSortingEnabled(False)
         self.remover_widgets_dinamicos()
 
@@ -190,15 +207,26 @@ class RelatoriosWindow(QWidget):
                 meses = 1
                 juros_total_emp = 0.0
             
+            # 🔹 cálculo base (fictício)
             capital_parc = capital_total_emp / meses if meses > 0 else 0.0
-            juros_parc = juros_total_emp / meses if meses > 0 else 0.0
+            juros_base = juros_total_emp / meses if meses > 0 else 0.0
+
+            # 🔹 pega lançamentos feitos pelo usuário
+            def _f(x):
+                try:
+                    return float(str(x).replace("R$", "").replace(".", "").replace(",", ".").strip() or 0)
+                except:
+                    return 0.0
+
+            juros_lancado = _f(p[5])   # coluna Juros da parcela
+            desconto_lancado = _f(p[6])  # coluna Desconto da parcela
+
+            juros_parc = juros_base + juros_lancado - desconto_lancado
             saldo_parc = capital_parc + juros_parc
 
             dados.append((nome_cliente, num, capital_parc, juros_parc, saldo_parc))
             total_capital += capital_parc
             total_juros += juros_parc
-
-        
 
         self.tabela.setRowCount(len(dados))
         for i, (nome, num, cap, jur, sal) in enumerate(dados):
@@ -224,6 +252,7 @@ class RelatoriosWindow(QWidget):
 
         self._cria_e_popula_totalizador(total_capital, total_juros)
         self._ajusta_visibilidade_colunas()
+
 
     def _cria_e_popula_totalizador(self, total_capital, total_juros):
         """Cria e adiciona o totalizador ao layout usando labels."""
