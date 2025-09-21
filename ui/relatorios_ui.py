@@ -18,8 +18,7 @@ class RelatoriosWindow(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet("background-color: #1c2331; color: white;")
-        self.setWindowTitle("Relatórios")
-
+        self.setWindowTitle("Relatórios")        
         self.layout_principal = QVBoxLayout(self)
 
         # 🔹 Título
@@ -107,9 +106,17 @@ class RelatoriosWindow(QWidget):
                 padding: 6px;
                 border: none;
             }
+            QTableWidget::item:selected {
+                background-color: transparent;   /* 🔹 remove o fundo azul */
+                color: white;                    /* mantém o texto branco */
+                border: 1px solid #3498db;       /* opcional: borda azul em volta */
+            }                     
         """)
         self.layout_principal.addWidget(self.tabela)
+        self.tabela.cellDoubleClicked.connect(self._abrir_parcelas_do_emprestimo)
 
+        self.tabela.setSelectionMode(QTableWidget.NoSelection)
+        #self.tabela.setFocusPolicy(Qt.NoFocus)
         # 🔹 Totalizador e spacer
         self.tabela_total = None
         self.spacer_total = None
@@ -333,20 +340,21 @@ class RelatoriosWindow(QWidget):
     def _popula_tabela_emprestimos_em_atraso(self):
         """Carrega empréstimos que tenham ao menos 1 parcela em atraso sem renegociação,
         ou com data prevista (renegociação) já vencida.
-        Mostra apenas Cliente e Total em atraso."""
+        Mostra Cliente e Total em atraso, permitindo abrir a tela de parcelas com duplo clique."""
         from datetime import datetime
 
         self.tabela.clearContents()
         self.tabela.setRowCount(0)
-        self.tabela.setColumnCount(2)
-        self.tabela.setHorizontalHeaderLabels(["Cliente", "Total em atraso"])
+        self.tabela.setColumnCount(3)  # 🔹 Cliente | Total em atraso | id oculto
+        self.tabela.setHorizontalHeaderLabels(["Cliente", "Total em atraso", "id_emprestimo"])
+        self.tabela.setColumnHidden(2, True)  # 🔹 oculta a coluna de ids
 
         todas_parcelas = carregar_parcelas()
         emprestimos = {e[0]: e for e in carregar_emprestimos() if e[9] == "sim"}  # ativos
         clientes = {c[0]: c[1] for c in carregar_clientes()}
 
         hoje = datetime.today()
-        dados = {}
+        dados = []  # (nome_cliente, total_atraso, id_emprestimo)
         total_geral = 0.0
 
         for p in todas_parcelas:
@@ -399,12 +407,12 @@ class RelatoriosWindow(QWidget):
                 valor_float = 0.0
 
             nome_cliente = clientes.get(emprestimos[id_emp][1], "Desconhecido")
-            dados[nome_cliente] = dados.get(nome_cliente, 0.0) + valor_float
+            dados.append((nome_cliente, valor_float, id_emp))
             total_geral += valor_float
 
         # Popular tabela
         self.tabela.setRowCount(len(dados))
-        for i, (nome, total) in enumerate(dados.items()):
+        for i, (nome, total, emp_id) in enumerate(dados):
             nome_item = QTableWidgetItem(nome)
             nome_item.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(i, 0, nome_item)
@@ -412,6 +420,9 @@ class RelatoriosWindow(QWidget):
             total_item = QTableWidgetItem(self._fmt_br(total))
             total_item.setTextAlignment(Qt.AlignCenter)
             self.tabela.setItem(i, 1, total_item)
+
+            id_item = QTableWidgetItem(emp_id)
+            self.tabela.setItem(i, 2, id_item)
 
         # Totalizador alinhado com as colunas
         self.spacer_total = QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed)
@@ -438,4 +449,44 @@ class RelatoriosWindow(QWidget):
         self.layout_principal.addLayout(self.totalizador_layout)
 
         # Guarda referência para poder atualizar depois, se necessário
-        self.lbl_total_valor = lbl_total_valor
+        self.lbl_total_valor = lbl_total_valor        
+
+    def _abrir_parcelas_do_emprestimo(self, row, col):
+        """Abre a tela de parcelas do empréstimo ao dar duplo clique no relatório de atrasados."""
+        filtro = self.cb_tipo.currentText()
+        if filtro != "Empréstimos (com parcelas em atraso)":
+            return  # só reage nesse relatório
+
+        item_id = self.tabela.item(row, 2)  # coluna oculta com id do empréstimo
+        if not item_id:
+            return
+
+        id_emprestimo = item_id.text().strip()
+        if not id_emprestimo:
+            return
+
+        from ui.parcelas_ui import ParcelasWindow
+        from emprestimos import carregar_emprestimos
+        from clientes import carregar_clientes
+
+        emprestimos = {e[0]: e for e in carregar_emprestimos()}
+        clientes = {c[0]: c[1] for c in carregar_clientes()}
+
+        if id_emprestimo not in emprestimos:
+            return
+
+        emp = emprestimos[id_emprestimo]
+        emprestimo_dict = {
+            "id": emp[0],
+            "cliente": clientes.get(emp[1], "Desconhecido"),
+            "capital": emp[2],
+            "data_inicio": emp[3],
+            "meses": emp[4],
+            "taxa": emp[5],
+            "juros": emp[6],
+            "prestacao": emp[7]
+        }
+
+        win = ParcelasWindow(emprestimo_dict, emp[8], parent=self)
+        win.show()
+
