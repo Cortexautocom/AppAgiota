@@ -113,7 +113,9 @@ class RelatoriosWindow(QWidget):
         filtro = self.cb_tipo.currentText()
         if filtro == "Parcelas em aberto":
             self._popula_tabela_parcelas_em_aberto()
-        # outros filtros virão aqui...
+        elif filtro == "Empréstimos (com parcelas em atraso)":
+            self._popula_tabela_emprestimos_em_atraso()
+        
 
         self.tabela.setSortingEnabled(True)
         self.tabela.sortItems(0, Qt.AscendingOrder)
@@ -298,3 +300,113 @@ class RelatoriosWindow(QWidget):
                 self.tabela_total.setColumnHidden(col, self.tabela.isColumnHidden(col))
 
         self._atualiza_totalizador()
+
+    def _popula_tabela_emprestimos_em_atraso(self):
+        """Carrega empréstimos que tenham ao menos 1 parcela em atraso sem renegociação,
+        ou com data prevista (renegociação) já vencida.
+        Mostra apenas Cliente e Total em atraso."""
+        from datetime import datetime
+
+        self.tabela.clearContents()
+        self.tabela.setRowCount(0)
+        self.tabela.setColumnCount(2)
+        self.tabela.setHorizontalHeaderLabels(["Cliente", "Total em atraso"])
+
+        todas_parcelas = carregar_parcelas()
+        emprestimos = {e[0]: e for e in carregar_emprestimos() if e[9] == "sim"}  # ativos
+        clientes = {c[0]: c[1] for c in carregar_clientes()}
+
+        hoje = datetime.today()
+        dados = {}
+        total_geral = 0.0
+
+        for p in todas_parcelas:
+            (
+                _id, id_emp, num, valor, venc,
+                juros, desconto, pg_principal, pg_juros,
+                valor_pago, residual, data_pag, _id_usuario,
+                data_prevista, comentario
+            ) = p
+
+            if id_emp not in emprestimos:
+                continue
+
+            # Ignora já pagas
+            if valor_pago and str(valor_pago).strip() not in ("", "0", "R$ 0,00"):
+                continue
+
+            # Converte datas
+            venc_dt = None
+            prev_dt = None
+            try:
+                if venc:
+                    venc_dt = datetime.strptime(venc, "%d/%m/%Y")
+            except:
+                pass
+            try:
+                if data_prevista:
+                    prev_dt = datetime.strptime(data_prevista, "%d/%m/%Y")
+            except:
+                pass
+
+            # Regras de atraso
+            atrasada = False
+            if venc_dt and hoje > venc_dt and not prev_dt:
+                atrasada = True
+            elif venc_dt and hoje > venc_dt and prev_dt and hoje > prev_dt:
+                atrasada = True
+
+            if not atrasada:
+                continue
+
+            # Valor da parcela = saldo (se tiver) ou valor cheio
+            try:
+                valor_float = 0.0
+                if residual and str(residual).strip():
+                    valor_float = float(str(residual).replace("R$", "").replace(".", "").replace(",", "."))
+                elif valor and str(valor).strip():
+                    valor_float = float(str(valor).replace("R$", "").replace(".", "").replace(",", "."))
+            except:
+                valor_float = 0.0
+
+            nome_cliente = clientes.get(emprestimos[id_emp][1], "Desconhecido")
+            dados[nome_cliente] = dados.get(nome_cliente, 0.0) + valor_float
+            total_geral += valor_float
+
+        # Popular tabela
+        self.tabela.setRowCount(len(dados))
+        for i, (nome, total) in enumerate(dados.items()):
+            nome_item = QTableWidgetItem(nome)
+            nome_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 0, nome_item)
+
+            total_item = QTableWidgetItem(self._fmt_br(total))
+            total_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 1, total_item)
+
+        # Totalizador alinhado com as colunas
+        self.spacer_total = QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed)
+        self.layout_principal.addSpacerItem(self.spacer_total)
+
+        self.totalizador_layout = QHBoxLayout()
+        self.totalizador_layout.setSpacing(0)
+
+        fonte_negrito = QFont()
+        fonte_negrito.setBold(True)
+
+        # Coluna 0 (Cliente) → título
+        lbl_total_titulo = QLabel("Total em atraso:")
+        lbl_total_titulo.setFont(fonte_negrito)
+        lbl_total_titulo.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.totalizador_layout.addWidget(lbl_total_titulo, 1)
+
+        # Coluna 1 (Total em atraso) → valor somado
+        lbl_total_valor = QLabel(self._fmt_br(total_geral))
+        lbl_total_valor.setFont(fonte_negrito)
+        lbl_total_valor.setAlignment(Qt.AlignCenter)
+        self.totalizador_layout.addWidget(lbl_total_valor, 1)
+
+        self.layout_principal.addLayout(self.totalizador_layout)
+
+        # Guarda referência para poder atualizar depois, se necessário
+        self.lbl_total_valor = lbl_total_valor
