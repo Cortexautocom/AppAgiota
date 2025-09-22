@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
+from datetime import datetime
 
 # Importações de dados
 from parcelas import carregar_parcelas
@@ -125,6 +126,7 @@ class RelatoriosWindow(QWidget):
         # 🔹 Conexões e carregamento inicial
         self.cb_tipo.currentIndexChanged.connect(self.carregar_dados)
         self.cb_mostrar.currentIndexChanged.connect(self._ajusta_visibilidade_colunas)
+        
         self.carregar_dados()
 
     def carregar_dados(self):
@@ -135,14 +137,29 @@ class RelatoriosWindow(QWidget):
         self.remover_widgets_dinamicos()
 
         filtro = self.cb_tipo.currentText()
+
+        # 🔹 controla visibilidade do filtro "Mostrar"
+        if filtro == "Empréstimos (com parcelas em atraso)":
+            self.cb_mostrar.setEnabled(False)   # ou use self.cb_mostrar.setVisible(False)
+        else:
+            self.cb_mostrar.setEnabled(True)
+
         if filtro == "Parcelas em aberto":
             self._popula_tabela_parcelas_em_aberto()
         elif filtro == "Empréstimos (com parcelas em atraso)":
             self._popula_tabela_emprestimos_em_atraso()
+        elif filtro == "Empréstimos (com renegociação)":
+            self._popula_tabela_emprestimos_com_renegociacao()
+            self.cb_mostrar.setEnabled(False)
+        elif filtro == "Empréstimos (em dia)":
+            self._popula_tabela_emprestimos_em_dia()
+            self.cb_mostrar.setEnabled(False)
+        else:
+            self.cb_mostrar.setEnabled(True)
         
-
         self.tabela.setSortingEnabled(True)
         self.tabela.sortItems(0, Qt.AscendingOrder)
+
     
     def remover_widgets_dinamicos(self):
         """Remove o totalizador, independentemente do tipo, e o spacer."""
@@ -307,6 +324,10 @@ class RelatoriosWindow(QWidget):
 
     def _atualiza_totalizador(self):
         """Atualiza a visibilidade dos rótulos do totalizador conforme o filtro 'Mostrar'."""
+        filtro = self.cb_tipo.currentText()
+        if filtro == "Empréstimos (com parcelas em atraso)":
+            return  # 🔹 não precisa ajustar nesse relatório
+
         mostrar = self.cb_mostrar.currentText()
         if hasattr(self, "lbl_capital_total"):
             self.lbl_capital_total.setHidden(mostrar == "Juros")
@@ -317,6 +338,10 @@ class RelatoriosWindow(QWidget):
 
     def _ajusta_visibilidade_colunas(self):
         """Ajusta a visibilidade das colunas com base no ComboBox 'Mostrar'."""
+        filtro = self.cb_tipo.currentText()
+        if filtro == "Empréstimos (com parcelas em atraso)":
+            return  # 🔹 não faz nada nesse relatório
+
         mostrar = self.cb_mostrar.currentText()
         if mostrar == "Capital":
             self.tabela.setColumnHidden(2, False)
@@ -329,7 +354,7 @@ class RelatoriosWindow(QWidget):
         else:  # Capital + Juros
             self.tabela.setColumnHidden(2, False)
             self.tabela.setColumnHidden(3, False)
-            self.tabela.setColumnHidden(4, False) # Exibe a coluna de saldo
+            self.tabela.setColumnHidden(4, False)  # Exibe a coluna de saldo
 
         for col in range(5):
             if self.tabela_total:
@@ -454,9 +479,9 @@ class RelatoriosWindow(QWidget):
     def _abrir_parcelas_do_emprestimo(self, row, col):
         """Abre a tela de parcelas do empréstimo ao dar duplo clique no relatório de atrasados."""
         filtro = self.cb_tipo.currentText()
-        if filtro != "Empréstimos (com parcelas em atraso)":
-            return  # só reage nesse relatório
-
+        if filtro not in ["Empréstimos (com parcelas em atraso)", "Empréstimos (com renegociação)", "Empréstimos (em dia)"]:
+            return  # só reage nesses relatórios
+        
         item_id = self.tabela.item(row, 2)  # coluna oculta com id do empréstimo
         if not item_id:
             return
@@ -490,3 +515,204 @@ class RelatoriosWindow(QWidget):
         win = ParcelasWindow(emprestimo_dict, emp[8], parent=self)
         win.show()
 
+
+    def _popula_tabela_emprestimos_com_renegociacao(self):
+        """Lista empréstimos que possuem renegociação (data prevista futura ou atual)."""
+        from datetime import datetime
+
+        self.tabela.clearContents()
+        self.tabela.setRowCount(0)
+        self.tabela.setColumnCount(3)  # Cliente | Total em renegociação | id oculto
+        self.tabela.setHorizontalHeaderLabels(["Cliente", "Total em renegociação", "id_emprestimo"])
+        self.tabela.setColumnHidden(2, True)  # oculta a coluna de IDs
+
+        todas_parcelas = carregar_parcelas()
+        emprestimos = {e[0]: e for e in carregar_emprestimos() if e[9] == "sim"}  # ativos
+        clientes = {c[0]: c[1] for c in carregar_clientes()}
+
+        hoje = datetime.today()
+        dados = []
+        total_geral = 0.0
+
+        for p in todas_parcelas:
+            (
+                _id, id_emp, num, valor, venc,
+                juros, desconto, pg_principal, pg_juros,
+                valor_pago, residual, data_pag, _id_usuario,
+                data_prevista, comentario
+            ) = p
+
+            if id_emp not in emprestimos:
+                continue
+            if not data_prevista:
+                continue
+
+            try:
+                prev_dt = datetime.strptime(data_prevista, "%d/%m/%Y")
+            except:
+                continue
+
+            if prev_dt >= hoje:  # renegociação válida
+                try:
+                    valor_float = 0.0
+                    if residual and str(residual).strip():
+                        valor_float = float(str(residual).replace("R$", "").replace(".", "").replace(",", "."))
+                    elif valor and str(valor).strip():
+                        valor_float = float(str(valor).replace("R$", "").replace(".", "").replace(",", "."))
+                except:
+                    valor_float = 0.0
+
+                nome_cliente = clientes.get(emprestimos[id_emp][1], "Desconhecido")
+                dados.append((nome_cliente, valor_float, id_emp))
+                total_geral += valor_float
+
+        # Preencher tabela
+        self.tabela.setRowCount(len(dados))
+        for i, (nome, total, emp_id) in enumerate(dados):
+            nome_item = QTableWidgetItem(nome)
+            nome_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 0, nome_item)
+
+            total_item = QTableWidgetItem(self._fmt_br(total))
+            total_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 1, total_item)
+
+            id_item = QTableWidgetItem(emp_id)
+            self.tabela.setItem(i, 2, id_item)
+
+        # Totalizador
+        self.spacer_total = QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed)
+        self.layout_principal.addSpacerItem(self.spacer_total)
+
+        self.totalizador_layout = QHBoxLayout()
+        self.totalizador_layout.setSpacing(0)
+
+        fonte_negrito = QFont()
+        fonte_negrito.setBold(True)
+
+        lbl_total_titulo = QLabel("Total em renegociação:")
+        lbl_total_titulo.setFont(fonte_negrito)
+        lbl_total_titulo.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.totalizador_layout.addWidget(lbl_total_titulo, 1)
+
+        lbl_total_valor = QLabel(self._fmt_br(total_geral))
+        lbl_total_valor.setFont(fonte_negrito)
+        lbl_total_valor.setAlignment(Qt.AlignCenter)
+        self.totalizador_layout.addWidget(lbl_total_valor, 1)
+
+        self.layout_principal.addLayout(self.totalizador_layout)
+        self.lbl_total_valor = lbl_total_valor
+
+    def _popula_tabela_emprestimos_em_dia(self):
+        """Lista empréstimos que não têm parcelas em atraso nem renegociação vencida.
+        Mostra apenas Cliente e Total em dia."""
+        from datetime import datetime
+
+        self.tabela.clearContents()
+        self.tabela.setRowCount(0)
+        self.tabela.setColumnCount(3)  # Cliente | Total em dia | id oculto
+        self.tabela.setHorizontalHeaderLabels(["Cliente", "Total em dia", "id_emprestimo"])
+        self.tabela.setColumnHidden(2, True)  # oculta a coluna de IDs
+
+        todas_parcelas = carregar_parcelas()
+        emprestimos = {e[0]: e for e in carregar_emprestimos() if e[9] == "sim"}  # ativos
+        clientes = {c[0]: c[1] for c in carregar_clientes()}
+
+        hoje = datetime.today()
+        atrasados = set()
+        reneg_vencida = set()
+        em_dia = {}
+
+        # Primeiro: identificar atrasados ou renegociação vencida
+        for p in todas_parcelas:
+            (
+                _id, id_emp, num, valor, venc,
+                juros, desconto, pg_principal, pg_juros,
+                valor_pago, residual, data_pag, _id_usuario,
+                data_prevista, comentario
+            ) = p
+
+            if id_emp not in emprestimos:
+                continue
+
+            # Ignora já pagas
+            if valor_pago and str(valor_pago).strip() not in ("", "0", "R$ 0,00"):
+                continue
+
+            # Converte datas
+            venc_dt = None
+            prev_dt = None
+            try:
+                if venc:
+                    venc_dt = datetime.strptime(venc, "%d/%m/%Y")
+            except:
+                pass
+            try:
+                if data_prevista:
+                    prev_dt = datetime.strptime(data_prevista, "%d/%m/%Y")
+            except:
+                pass
+
+            # Marca como atraso
+            if venc_dt and hoje > venc_dt and not prev_dt:
+                atrasados.add(id_emp)
+            elif venc_dt and hoje > venc_dt and prev_dt and hoje > prev_dt:
+                atrasados.add(id_emp)
+            # Marca como renegociação vencida
+            elif prev_dt and hoje > prev_dt:
+                reneg_vencida.add(id_emp)
+
+        # Agora: os que sobraram são "em dia"
+        total_geral = 0.0
+        for id_emp, emp in emprestimos.items():
+            if id_emp in atrasados or id_emp in reneg_vencida:
+                continue
+
+            nome_cliente = clientes.get(emp[1], "Desconhecido")
+
+            try:
+                capital_total = float(emp[2]) if emp[2] else 0.0
+                juros_total = float(emp[6]) if emp[6] else 0.0
+                total = capital_total + juros_total
+            except:
+                total = 0.0
+
+            em_dia[id_emp] = (nome_cliente, total)
+            total_geral += total
+
+        # Preencher tabela
+        self.tabela.setRowCount(len(em_dia))
+        for i, (emp_id, (nome, total)) in enumerate(em_dia.items()):
+            nome_item = QTableWidgetItem(nome)
+            nome_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 0, nome_item)
+
+            total_item = QTableWidgetItem(self._fmt_br(total))
+            total_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 1, total_item)
+
+            id_item = QTableWidgetItem(emp_id)
+            self.tabela.setItem(i, 2, id_item)
+
+        # Totalizador
+        self.spacer_total = QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed)
+        self.layout_principal.addSpacerItem(self.spacer_total)
+
+        self.totalizador_layout = QHBoxLayout()
+        self.totalizador_layout.setSpacing(0)
+
+        fonte_negrito = QFont()
+        fonte_negrito.setBold(True)
+
+        lbl_total_titulo = QLabel("Total em dia:")
+        lbl_total_titulo.setFont(fonte_negrito)
+        lbl_total_titulo.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.totalizador_layout.addWidget(lbl_total_titulo, 1)
+
+        lbl_total_valor = QLabel(self._fmt_br(total_geral))
+        lbl_total_valor.setFont(fonte_negrito)
+        lbl_total_valor.setAlignment(Qt.AlignCenter)
+        self.totalizador_layout.addWidget(lbl_total_valor, 1)
+
+        self.layout_principal.addLayout(self.totalizador_layout)
+        self.lbl_total_valor = lbl_total_valor
