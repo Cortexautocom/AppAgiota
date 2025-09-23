@@ -1,11 +1,14 @@
 # ui/relatorios_ui.py
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QComboBox, QTableWidget, QHeaderView, QTableWidgetItem, QSpacerItem, QSizePolicy
+    QComboBox, QTableWidget, QHeaderView, QTableWidgetItem, QSpacerItem, QSizePolicy, QPushButton, QFileDialog, QMessageBox
 )
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QTextDocument
 from PySide6.QtCore import Qt
 from datetime import datetime
+from PySide6.QtPrintSupport import QPrinter
+#from reportlab.lib.pagesizes import A4
+#from reportlab.pdfgen import canvas
 
 # Importações de dados
 from parcelas import carregar_parcelas
@@ -127,6 +130,19 @@ class RelatoriosWindow(QWidget):
         self.cb_tipo.currentIndexChanged.connect(self.carregar_dados)
         self.cb_mostrar.currentIndexChanged.connect(self._ajusta_visibilidade_colunas)
         
+        # Botão Download
+        self.btn_download = QPushButton("📥 Download")
+        self.btn_download.setStyleSheet("""
+            QPushButton {
+                background-color:#27ae60; color:white;
+                padding:6px 12px; border-radius:6px;
+                font-weight:bold;
+            }
+            QPushButton:hover { background-color:#2ecc71; }
+        """)
+        self.btn_download.clicked.connect(self.gerar_pdf)
+        filtro_layout.addWidget(self.btn_download)
+
         self.carregar_dados()
 
     def carregar_dados(self):
@@ -716,3 +732,47 @@ class RelatoriosWindow(QWidget):
 
         self.layout_principal.addLayout(self.totalizador_layout)
         self.lbl_total_valor = lbl_total_valor
+
+    def gerar_pdf(self):
+        """Exporta a tabela atual para PDF usando apenas PySide6."""
+        if self.tabela.rowCount() == 0:
+            QMessageBox.warning(self, "Aviso", "Não há dados para exportar.")
+            return
+
+        # Pergunta onde salvar
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Salvar relatório", "relatorio.pdf", "PDF Files (*.pdf)"
+        )
+        if not path:
+            return
+
+        # Monta HTML simples com os dados da tabela
+        html = "<h2>Relatório</h2><table border='1' cellspacing='0' cellpadding='4'>"
+        html += "<tr>"
+        for col in range(self.tabela.columnCount()):
+            if self.tabela.isColumnHidden(col):
+                continue
+            html += f"<th>{self.tabela.horizontalHeaderItem(col).text()}</th>"
+        html += "</tr>"
+
+        for row in range(self.tabela.rowCount()):
+            html += "<tr>"
+            for col in range(self.tabela.columnCount()):
+                if self.tabela.isColumnHidden(col):
+                    continue
+                item = self.tabela.item(row, col)
+                texto = item.text() if item else ""
+                html += f"<td>{texto}</td>"
+            html += "</tr>"
+        html += "</table>"
+
+        # Converte HTML em PDF
+        doc = QTextDocument()
+        doc.setHtml(html)
+
+        printer = QPrinter()
+        printer.setOutputFormat(QPrinter.PdfFormat)
+        printer.setOutputFileName(path)
+        doc.print_(printer)
+
+        QMessageBox.information(self, "Sucesso", f"Relatório salvo em:\n{path}")
