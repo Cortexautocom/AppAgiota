@@ -1,9 +1,12 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView,
-    QLabel, QPushButton, QFrame, QAbstractItemView, QLineEdit, QHBoxLayout, QTextEdit
+    QLabel, QPushButton, QFrame, QAbstractItemView, QLineEdit, QHBoxLayout, QTextEdit, QFileDialog, QMessageBox
 )
+
+from PySide6.QtPrintSupport import QPrinter
+
 from PySide6.QtCore import Qt, QRegularExpression
-from PySide6.QtGui import QColor, QFont, QRegularExpressionValidator
+from PySide6.QtGui import QColor, QFont, QRegularExpressionValidator, QTextDocument
 from parcelas import parcelas, salvar_parcelas, sincronizar_parcelas_upload
 import uuid
 
@@ -297,6 +300,18 @@ class ParcelasWindow(QWidget):
             btns_layout.addWidget(btn_salvar, alignment=Qt.AlignLeft)
 
             btns_layout.addStretch()
+
+            # Botão PDF
+            btn_pdf = QPushButton("📥 Gerar PDF")
+            btn_pdf.setStyleSheet("""
+                QPushButton {
+                    background-color:#3498db; color: white;
+                    padding: 8px; border-radius: 6px; font-weight: bold;
+                }
+                QPushButton:hover { background-color:#2980b9; }
+            """)
+            btn_pdf.clicked.connect(self.gerar_pdf)
+            btns_layout.addWidget(btn_pdf, alignment=Qt.AlignCenter)
 
             # Botão arquivar
             btn_arquivar = QPushButton("🗑 Arquivar Empréstimo")
@@ -1036,3 +1051,53 @@ class ParcelasWindow(QWidget):
 
             except Exception:
                 pass
+    
+
+    def gerar_pdf(self):
+        """Exporta a tabela de parcelas para PDF (sem juros, desconto e totalizadores)."""
+        if self.tabela.rowCount() == 0:
+            QMessageBox.warning(self, "Aviso", "Não há dados para exportar.")
+            return
+
+        # Pergunta onde salvar
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Salvar relatório de parcelas", "parcelas.pdf", "PDF Files (*.pdf)"
+        )
+        if not path:
+            return
+
+        # Monta HTML simples com os dados da tabela
+        html = f"<h2>Parcelas - {self.emprestimo.get('cliente', '')}</h2>"
+        html += "<table border='1' cellspacing='0' cellpadding='4'>"
+        html += "<tr>"
+
+        # Cabeçalhos (ignorando Juros, Desconto e Totalizadores)
+        for col in range(self.tabela.columnCount()):
+            if col in (3, 4):  # Juros e Desconto
+                continue
+            html += f"<th>{self.tabela.horizontalHeaderItem(col).text()}</th>"
+        html += "</tr>"
+
+        # Linhas (ignora última linha = totalizador)
+        for row in range(self.tabela.rowCount() - 1):
+            html += "<tr>"
+            for col in range(self.tabela.columnCount()):
+                if col in (3, 4):  # Ignora Juros e Desconto
+                    continue
+                item = self.tabela.item(row, col)
+                texto = item.text() if item else ""
+                html += f"<td>{texto}</td>"
+            html += "</tr>"
+
+        html += "</table>"
+
+        # Converte HTML em PDF
+        doc = QTextDocument()
+        doc.setHtml(html)
+
+        printer = QPrinter()
+        printer.setOutputFormat(QPrinter.PdfFormat)
+        printer.setOutputFileName(path)
+        doc.print_(printer)
+
+        QMessageBox.information(self, "Sucesso", f"Relatório salvo em:\n{path}")
