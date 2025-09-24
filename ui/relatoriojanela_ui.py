@@ -18,12 +18,12 @@ class RelatorioJanelaWindow(QWidget):
 
         self.layout_principal = QVBoxLayout(self)
 
-        # Título
+        # 🔹 Título
         lbl_title = QLabel(f"📑 {tipo}")
         lbl_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #9fb0c7; margin-bottom: 8px;")
         self.layout_principal.addWidget(lbl_title)
 
-        # Tabela principal
+        # 🔹 Tabela principal (criada uma única vez e nunca removida)
         self.tabela = QTableWidget()
         self.tabela.setEditTriggers(QTableWidget.NoEditTriggers)
         self.tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -33,6 +33,8 @@ class RelatorioJanelaWindow(QWidget):
                 background-color: #2c3446;
                 color: white;
                 border: 1px solid #3a455b;
+                selection-background-color: transparent;  /* 🔹 sem fundo rosa/azul */
+                selection-color: white;                   /* 🔹 texto sempre branco */
             }
             QHeaderView::section {
                 background-color: #374157;
@@ -41,13 +43,18 @@ class RelatorioJanelaWindow(QWidget):
                 padding: 6px;
                 border: none;
             }
+            QTableWidget::item:selected {
+                background-color: transparent;
+                color: white;
+                border: 1px solid #3498db;  /* 🔹 borda azul discreta */
+            }
         """)
         self.layout_principal.addWidget(self.tabela)
 
-        # Totalizador (adicionado depois)
+        # 🔹 Totalizador (adicionado depois)
         self.totalizador_layout = None
 
-        # Chamar relatório
+        # 🔹 Chamar relatório (apenas limpa e preenche a tabela, nunca recria)
         if tipo == "Parcelas em aberto":
             self._mostrar_parcelas_em_aberto(mostrar)
         elif tipo == "Empréstimos (com parcelas em atraso)":
@@ -58,6 +65,10 @@ class RelatorioJanelaWindow(QWidget):
             self._mostrar_emprestimos_ativos()
         elif tipo == "Empréstimos inativos":
             self._mostrar_emprestimos_inativos()
+
+        # 🔹 Ativa duplo clique apenas nos relatórios de empréstimos
+        if tipo != "Parcelas em aberto":
+            self.tabela.cellDoubleClicked.connect(self._abrir_parcelas_do_emprestimo)
 
     def _fmt_br(self, valor):
         """Formata valor float no padrão brasileiro R$ 0,00"""
@@ -491,3 +502,61 @@ class RelatorioJanelaWindow(QWidget):
 
         self.layout_principal.addLayout(total_layout)
         self.totalizador_layout = total_layout
+
+    def _abrir_parcelas_do_emprestimo(self, row, col):
+        """Abre a tela de parcelas do empréstimo ao dar duplo clique (exceto Parcelas em aberto)."""
+        from ui.parcelas_ui import ParcelasWindow
+        from emprestimos import carregar_emprestimos
+        from clientes import carregar_clientes
+
+        # Descobre o relatório atual
+        titulo = self.windowTitle().replace("📑 Relatório - ", "")
+        if titulo == "Parcelas em aberto":
+            return  # não abre parcelas nesse caso
+
+        # Pega o nome do cliente na tabela
+        item_cliente = self.tabela.item(row, 0)
+        if not item_cliente:
+            return
+        nome_cliente = item_cliente.text().strip()
+
+        # Recupera todos os empréstimos
+        emprestimos = {e[0]: e for e in carregar_emprestimos()}
+        clientes = {c[0]: c[1] for c in carregar_clientes()}
+
+        # Encontrar o ID do cliente pelo nome
+        id_cliente = None
+        for k, v in clientes.items():
+            if v == nome_cliente:
+                id_cliente = k
+                break
+
+        if not id_cliente:
+            return
+
+        # Encontrar o empréstimo pelo cliente
+        emprestimo = None
+        for emp in emprestimos.values():
+            if emp[1] == id_cliente:
+                emprestimo = emp
+                break
+
+        if not emprestimo:
+            return
+
+        # Montar dicionário para ParcelasWindow
+        emprestimo_dict = {
+            "id": emprestimo[0],
+            "cliente": clientes.get(emprestimo[1], "Desconhecido"),
+            "capital": emprestimo[2],
+            "data_inicio": emprestimo[3],
+            "meses": emprestimo[4],
+            "taxa": emprestimo[5],
+            "juros": emprestimo[6],
+            "prestacao": emprestimo[7]
+        }
+
+        # Abrir janela de parcelas
+        win = ParcelasWindow(emprestimo_dict, emprestimo[8], parent=self)
+        win.show()
+        self.parcelas_window = win  # manter referência para não fechar

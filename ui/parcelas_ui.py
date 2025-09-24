@@ -321,6 +321,7 @@ class ParcelasWindow(QWidget):
 
             # Botão arquivar
             btn_arquivar = QPushButton("🗑 Arquivar Empréstimo")
+            btn_arquivar.setFixedWidth(120)
             btn_arquivar.setStyleSheet("""
                 QPushButton {
                     background-color: #e74c3c; color: white;
