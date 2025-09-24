@@ -39,18 +39,13 @@ class RelatoriosWindow(QWidget):
         self.cb_tipo.addItems([
             "Parcelas em aberto",
             "Empréstimos (com parcelas em atraso)",
-            "Empréstimos (com renegociação)",
-            "Empréstimos (em dia)"
+            "Empréstimos ativos",
+            "Empréstimos inativos"
         ])
 
         lbl_mostrar = QLabel("Mostrar:")
         self.cb_mostrar = QComboBox()
-        self.cb_mostrar.addItems([
-            "Capital",
-            "Juros",
-            "Capital + Juros"
-        ])
-
+        
         # 🔹 Restaura última escolha, se houver
         if RelatoriosWindow.ultima_escolha_tipo:
             idx = self.cb_tipo.findText(RelatoriosWindow.ultima_escolha_tipo)
@@ -64,7 +59,7 @@ class RelatoriosWindow(QWidget):
         else:
             self.cb_mostrar.setCurrentIndex(2)  # padrão Capital+Juros
 
-
+        # Estilo dos combobox
         for cb in [self.cb_tipo, self.cb_mostrar]:
             cb.setStyleSheet("""
                 QComboBox {
@@ -79,71 +74,25 @@ class RelatoriosWindow(QWidget):
                     selection-background-color:#374157;
                 }
             """)
-        
+
         filtro_layout.addWidget(lbl_tipo)
-        filtro_layout.addWidget(self.cb_tipo)
-        filtro_layout.addWidget(lbl_mostrar)
-        filtro_layout.addWidget(self.cb_mostrar)
-        self.layout_principal.addLayout(filtro_layout)
-
-        # 🔹 Tabela principal
-        self.tabela = QTableWidget()
-        self.tabela.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.tabela.verticalHeader().setVisible(False)
-
-        header = self.tabela.horizontalHeader()
-        header.setSectionsClickable(True)
-        header.setSortIndicatorShown(True)
-        self.tabela.setSortingEnabled(True)
-
-        self.tabela.setStyleSheet("""
-            QTableWidget {
-                background-color: #2c3446;
-                color: white;
-                border: 1px solid #3a455b;
-            }
-            QHeaderView::section {
-                background-color: #374157;
-                color: white;
-                font-weight: bold;
-                padding: 6px;
-                border: none;
-            }
-            QTableWidget::item:selected {
-                background-color: transparent;   /* 🔹 remove o fundo azul */
-                color: white;                    /* mantém o texto branco */
-                border: 1px solid #3498db;       /* opcional: borda azul em volta */
-            }                     
-        """)
-        self.layout_principal.addWidget(self.tabela)
-        self.tabela.cellDoubleClicked.connect(self._abrir_parcelas_do_emprestimo)
-
-        self.tabela.setSelectionMode(QTableWidget.NoSelection)
-        #self.tabela.setFocusPolicy(Qt.NoFocus)
-        # 🔹 Totalizador e spacer
-        self.tabela_total = None
-        self.spacer_total = None
-        self.totalizador_layout = None # Adicione esta linha
-
-        # 🔹 Conexões e carregamento inicial
-        self.cb_tipo.currentIndexChanged.connect(self.carregar_dados)
-        self.cb_mostrar.currentIndexChanged.connect(self._ajusta_visibilidade_colunas)
+        filtro_layout.addWidget(self.cb_tipo)        
         
-        # Botão Download
-        self.btn_download = QPushButton("📥 Download")
-        self.btn_download.setStyleSheet("""
+
+        # Botão Gerar em nova janela
+        self.btn_gerar = QPushButton("📑 Gerar")
+        self.btn_gerar.setStyleSheet("""
             QPushButton {
-                background-color:#27ae60; color:white;
+                background-color:#3498db; color:white;
                 padding:6px 12px; border-radius:6px;
                 font-weight:bold;
             }
-            QPushButton:hover { background-color:#2ecc71; }
+            QPushButton:hover { background-color:#2980b9; }
         """)
-        self.btn_download.clicked.connect(self.gerar_pdf)
-        filtro_layout.addWidget(self.btn_download)
+        self.btn_gerar.clicked.connect(self.abrir_em_nova_janela)
+        filtro_layout.addWidget(self.btn_gerar)
 
-        self.carregar_dados()
+        self.layout_principal.addLayout(filtro_layout)
 
     def carregar_dados(self):
         RelatoriosWindow.ultima_escolha_tipo = self.cb_tipo.currentText()
@@ -776,3 +725,11 @@ class RelatoriosWindow(QWidget):
         doc.print_(printer)
 
         QMessageBox.information(self, "Sucesso", f"Relatório salvo em:\n{path}")
+
+    def abrir_em_nova_janela(self):
+        from ui.relatoriojanela_ui import RelatorioJanelaWindow
+        tipo = self.cb_tipo.currentText()
+        mostrar = self.cb_mostrar.currentText()
+
+        self.nova_janela = RelatorioJanelaWindow(tipo, mostrar, parent=self)
+        self.nova_janela.show()
