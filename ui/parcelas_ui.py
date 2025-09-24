@@ -3,6 +3,12 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QFrame, QAbstractItemView, QLineEdit, QHBoxLayout, QTextEdit, QFileDialog, QMessageBox
 )
 
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from datetime import datetime
+
 from PySide6.QtPrintSupport import QPrinter
 
 from PySide6.QtCore import Qt, QRegularExpression
@@ -1035,12 +1041,12 @@ class ParcelasWindow(QWidget):
 
                 if data_prevista:
                     if hoje <= data_prevista:
-                        cor = QColor("#FFD966")  # amarelo (texto)
+                        cor = QColor("#FFC518")  # amarelo (texto)
                     else:
-                        cor = QColor("#F28B82")  # vermelho (texto)
+                        cor = QColor("#FF6456")  # vermelho (texto)
                 elif vencimento:
                     if hoje > vencimento:
-                        cor = QColor("#F28B82")  # vermelho (texto)
+                        cor = QColor("#FF6456")  # vermelho (texto)
 
                 # 🔹 Aplica cor na linha inteira (texto)
                 if cor:
@@ -1054,50 +1060,92 @@ class ParcelasWindow(QWidget):
     
 
     def gerar_pdf(self):
-        """Exporta a tabela de parcelas para PDF (sem juros, desconto e totalizadores)."""
+
         if self.tabela.rowCount() == 0:
             QMessageBox.warning(self, "Aviso", "Não há dados para exportar.")
             return
 
+        # 🔹 Sugere nome padrão baseado no cliente
+        nome_cliente = self.emprestimo.get("cliente", "Cliente")
+        nome_arquivo = f"Empréstimo - {nome_cliente}.pdf"
+
         # Pergunta onde salvar
         path, _ = QFileDialog.getSaveFileName(
-            self, "Salvar relatório de parcelas", "parcelas.pdf", "PDF Files (*.pdf)"
+            self,
+            "Salvar relatório de parcelas",
+            nome_arquivo,
+            "PDF Files (*.pdf)"
         )
         if not path:
             return
 
-        # Monta HTML simples com os dados da tabela
-        html = f"<h2>Parcelas - {self.emprestimo.get('cliente', '')}</h2>"
-        html += "<table border='1' cellspacing='0' cellpadding='4'>"
-        html += "<tr>"
+        # Documento base
+        doc = SimpleDocTemplate(path, pagesize=A4)
+        elementos = []
+        estilos = getSampleStyleSheet()
 
-        # Cabeçalhos (ignorando Juros, Desconto e Totalizadores)
-        for col in range(self.tabela.columnCount()):
-            if col in (3, 4):  # Juros e Desconto
-                continue
-            html += f"<th>{self.tabela.horizontalHeaderItem(col).text()}</th>"
-        html += "</tr>"
+        # 🔹 Título
+        titulo = f"Parcelas - {self.emprestimo.get('cliente','')}"
+        elementos.append(Paragraph(titulo, estilos['Title']))
+        elementos.append(Spacer(1, 12))
 
-        # Linhas (ignora última linha = totalizador)
+        # 🔹 Cabeçalhos
+        headers = ["Nº", "Vencimento", "Valor da parcela", "Valor pago", "Saldo", "Data do pag."]
+        dados = [headers]
+
+
+        # 🔹 Preencher linhas (ignora última linha = totalizador)
         for row in range(self.tabela.rowCount() - 1):
-            html += "<tr>"
-            for col in range(self.tabela.columnCount()):
-                if col in (3, 4):  # Ignora Juros e Desconto
-                    continue
-                item = self.tabela.item(row, col)
-                texto = item.text() if item else ""
-                html += f"<td>{texto}</td>"
-            html += "</tr>"
+            # Nº
+            num = self.tabela.item(row, 0).text() if self.tabela.item(row, 0) else ""
 
-        html += "</table>"
+            # Vencimento
+            venc = self.tabela.item(row, 1).text() if self.tabela.item(row, 1) else ""
 
-        # Converte HTML em PDF
-        doc = QTextDocument()
-        doc.setHtml(html)
+            # Valor da parcela = Valor + Juros
+            try:
+                valor_txt = self.tabela.item(row, 2).text() if self.tabela.item(row, 2) else "0"
+                juros_txt = self.tabela.item(row, 3).text() if self.tabela.item(row, 3) else "0"
+                valor = float(str(valor_txt).replace("R$", "").replace(".", "").replace(",", ".") or 0)
+                juros = float(str(juros_txt).replace("R$", "").replace(".", "").replace(",", ".") or 0)
+                valor_total = valor + juros
+                valor_fmt = f"R$ {valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            except:
+                valor_fmt = valor_txt
 
-        printer = QPrinter()
-        printer.setOutputFormat(QPrinter.PdfFormat)
-        printer.setOutputFileName(path)
-        doc.print_(printer)
+            # Valor pago
+            valor_pago = self.tabela.item(row, 8).text() if self.tabela.item(row, 8) else ""
 
+            # Saldo
+            saldo = self.tabela.item(row, 9).text() if self.tabela.item(row, 9) else ""
+
+            # Data do pagamento (QLineEdit)
+            widget = self.tabela.cellWidget(row, 10)
+            data_pag = widget.text() if widget else (self.tabela.item(row, 10).text() if self.tabela.item(row, 10) else "")
+
+            # Monta linha final
+            dados.append([num, venc, valor_fmt, valor_pago, saldo, data_pag])
+
+        # 🔹 Criar tabela formatada
+        tabela_pdf = Table(dados, repeatRows=1)
+        tabela_pdf.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
+            ('TEXTCOLOR',(0,0),(-1,0),colors.whitesmoke),
+            ('ALIGN',(0,0),(-1,-1),'CENTER'),
+            ('GRID',(0,0),(-1,-1),0.5,colors.grey),
+            ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),
+            ('BACKGROUND',(0,1),(-1,-1),colors.beige),
+        ]))
+
+        elementos.append(tabela_pdf)
+
+        # 🔹 Espaço antes do rodapé
+        elementos.append(Spacer(1, 20))
+
+        # 🔹 Data do relatório
+        data_atual = datetime.today().strftime("%d/%m/%Y")
+        elementos.append(Paragraph(f"Data do relatório: {data_atual}", estilos['Normal']))
+
+        # 🔹 Gerar arquivo
+        doc.build(elementos)
         QMessageBox.information(self, "Sucesso", f"Relatório salvo em:\n{path}")
