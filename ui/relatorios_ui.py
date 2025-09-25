@@ -7,6 +7,7 @@ from PySide6.QtGui import QFont, QTextDocument
 from PySide6.QtCore import Qt
 from datetime import datetime
 from PySide6.QtPrintSupport import QPrinter
+import json, os, webbrowser
 #from reportlab.lib.pagesizes import A4
 #from reportlab.pdfgen import canvas
 
@@ -14,6 +15,7 @@ from PySide6.QtPrintSupport import QPrinter
 from parcelas import carregar_parcelas
 from emprestimos import carregar_emprestimos
 from clientes import carregar_clientes
+from config import get_local_db_path
 
 
 class RelatoriosWindow(QWidget):
@@ -726,10 +728,128 @@ class RelatoriosWindow(QWidget):
 
         QMessageBox.information(self, "Sucesso", f"Relatório salvo em:\n{path}")
 
-    def abrir_em_nova_janela(self):
-        from ui.relatoriojanela_ui import RelatorioJanelaWindow
+    def abrir_em_nova_janela(self):    
+
         tipo = self.cb_tipo.currentText()
         mostrar = self.cb_mostrar.currentText()
 
-        self.nova_janela = RelatorioJanelaWindow(tipo, mostrar, parent=self)
-        self.nova_janela.show()
+        # 🔹 Monta dados do relatório (aqui só implementei Parcelas em aberto como exemplo)
+        colunas = []
+        linhas = []
+
+        if tipo == "Parcelas em aberto":
+            todas_parcelas = carregar_parcelas()
+            emprestimos_dict = {e[0]: e for e in carregar_emprestimos() if e[9] == "sim"}
+            clientes_dict = {c[0]: c[1] for c in carregar_clientes()}
+
+            colunas = ["Cliente", "Nº", "Capital", "Juros", "Saldo"]
+
+            for p in todas_parcelas:
+                (
+                    _id, id_emp, num, _, _,
+                    _, _, _, _,
+                    valor_pago, _, _, _,
+                    _, _
+                ) = p
+
+                pago = valor_pago and str(valor_pago).strip() not in ("", "0", "R$ 0,00")
+                if pago or id_emp not in emprestimos_dict:
+                    continue
+
+                emp = emprestimos_dict[id_emp]
+                id_cliente = emp[1]
+                nome_cliente = clientes_dict.get(id_cliente, "Desconhecido")
+
+                try:
+                    capital_total_emp = float(emp[2]) if emp[2] else 0.0
+                    meses = int(emp[4]) if emp[4] else 1
+                    juros_total_emp = float(emp[6]) if emp[6] else 0.0
+                except:
+                    capital_total_emp = juros_total_emp = 0.0
+                    meses = 1
+
+                capital_parc = capital_total_emp / meses if meses > 0 else 0.0
+                juros_parc = juros_total_emp / meses if meses > 0 else 0.0
+                saldo = capital_parc + juros_parc
+
+                linhas.append([
+                    nome_cliente,
+                    str(num),
+                    f"R$ {capital_parc:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                    f"R$ {juros_parc:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                    f"R$ {saldo:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                ])
+
+        else:
+            colunas = ["Aviso"]
+            linhas = [[f"Implementar relatório '{tipo}' em HTML"]]
+
+        # 🔹 Monta o HTML com dados embutidos
+        html = f"""<!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+    <meta charset="UTF-8">
+    <title>📑 Relatório</title>
+    <style>
+        body {{ background:#ffffff; color:#333; font-family: Arial, sans-serif; padding:20px; }}
+        h2 {{ color:#2c3e50; }}
+        table {{ width:100%; border-collapse: collapse; margin-top:20px; }}
+        th, td {{ border:1px solid #ccc; padding:8px; text-align:center; }}
+        th {{ background:#f0f0f0; color:#333; }}
+        tr:nth-child(even) {{ background:#f9f9f9; }}
+        .btn {{ background:#3498db; color:white; padding:8px 12px; border:none; border-radius:6px; cursor:pointer; }}
+        .btn:hover {{ background:#2980b9; }}
+    </style>
+    </head>
+    <body>
+    <h2>📊 {tipo}</h2>
+    <button class="btn" onclick="gerarPDF()">📥 Gerar PDF</button>
+    <table id="tabela">
+        <thead><tr id="header"></tr></thead>
+        <tbody id="corpo"></tbody>
+    </table>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
+    <script>
+        const dados = {{
+        tipo: "{tipo}",
+        mostrar: "{mostrar}",
+        colunas: {colunas},
+        linhas: {linhas}
+        }};
+
+        // Cabeçalhos
+        let headerRow = document.getElementById("header");
+        dados.colunas.forEach(c => {{
+        let th = document.createElement("th");
+        th.textContent = c;
+        headerRow.appendChild(th);
+        }});
+
+        // Linhas
+        let corpo = document.getElementById("corpo");
+        dados.linhas.forEach(linha => {{
+        let tr = document.createElement("tr");
+        linha.forEach(cel => {{
+            let td = document.createElement("td");
+            td.textContent = cel;
+            tr.appendChild(td);
+        }});
+        corpo.appendChild(tr);
+        }});
+
+        function gerarPDF() {{
+        html2pdf().from(document.body).save("relatorio.pdf");
+        }}
+    </script>
+    </body>
+    </html>"""
+
+        # 🔹 Salva o HTML em disco
+        pasta = os.path.dirname(get_local_db_path())
+        caminho_html = os.path.join(pasta, "relatorio.html")
+        with open(caminho_html, "w", encoding="utf-8") as f:
+            f.write(html)
+
+        # 🔹 Abre no navegador
+        webbrowser.open(f"file://{caminho_html}")
