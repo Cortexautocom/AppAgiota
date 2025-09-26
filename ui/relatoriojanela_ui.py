@@ -10,6 +10,8 @@ class RelatorioJanelaWindow(QWidget):
     def __init__(self, tipo, mostrar, parent=None):
         super().__init__(parent)
 
+        print(f"[DEBUG] RelatorioJanelaWindow iniciado com tipo='{tipo}', mostrar='{mostrar}'")
+
         # Configuração da janela
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowMinimizeButtonHint)
         self.setWindowTitle(f"📑 Relatório - {tipo}")
@@ -55,15 +57,15 @@ class RelatorioJanelaWindow(QWidget):
         self.totalizador_layout = None
 
         # 🔹 Chamar relatório (apenas limpa e preenche a tabela, nunca recria)
-        if tipo == "Parcelas em aberto":
+        if tipo == "Parcelas em aberto":            
             self._mostrar_parcelas_em_aberto(mostrar)
-        elif tipo == "Empréstimos (com parcelas em atraso)":
+        elif tipo == "Empréstimos (com parcelas em atraso)":            
             self._mostrar_emprestimos_em_atraso()
-        elif tipo == "Empréstimos (com renegociação)":
+        elif tipo == "Empréstimos (com renegociação)":            
             self._mostrar_emprestimos_com_renegociacao()
-        elif tipo == "Todos os empréstimos (em aberto)":
+        elif tipo == "Todos os empréstimos (em aberto)":            
             self._mostrar_todos_em_aberto()
-        elif tipo == "Empréstimos inativos":
+        elif tipo == "Empréstimos inativos":            
             self._mostrar_emprestimos_inativos()
 
         # 🔹 Ativa duplo clique apenas nos relatórios de empréstimos

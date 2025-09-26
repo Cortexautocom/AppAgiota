@@ -41,9 +41,9 @@ class RelatoriosWindow(QWidget):
         self.cb_tipo.addItems([
             "Parcelas em aberto",
             "Empréstimos (com parcelas em atraso)",
-            "Empréstimos ativos",
-            "Empréstimos inativos",
-            "Todos os empréstimos (valor em aberto)"
+            "Empréstimos (com renegociação)",
+            "Todos os empréstimos (em aberto)",
+            "Empréstimos inativos"
         ])
         filtro_layout.addWidget(lbl_tipo)
         filtro_layout.addWidget(self.cb_tipo)        
@@ -971,3 +971,13 @@ class RelatoriosWindow(QWidget):
         </script>
         </body>
         </html>"""
+
+    def abrir_em_nova_janela(self):
+        from ui.relatoriojanela_ui import RelatorioJanelaWindow
+        tipo = self.cb_tipo.currentText()
+        mostrar = getattr(self, "cb_mostrar", None)
+        mostrar_text = mostrar.currentText() if mostrar else "Capital + Juros"
+        
+        self.nova_janela = RelatorioJanelaWindow(tipo, mostrar_text, parent=self)
+        self.nova_janela.show()
+        
