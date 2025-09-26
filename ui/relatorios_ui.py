@@ -42,44 +42,11 @@ class RelatoriosWindow(QWidget):
             "Parcelas em aberto",
             "Empréstimos (com parcelas em atraso)",
             "Empréstimos ativos",
-            "Empréstimos inativos"
+            "Empréstimos inativos",
+            "Todos os empréstimos (valor em aberto)"
         ])
-
-        lbl_mostrar = QLabel("Mostrar:")
-        self.cb_mostrar = QComboBox()
-        
-        # 🔹 Restaura última escolha, se houver
-        if RelatoriosWindow.ultima_escolha_tipo:
-            idx = self.cb_tipo.findText(RelatoriosWindow.ultima_escolha_tipo)
-            if idx >= 0:
-                self.cb_tipo.setCurrentIndex(idx)
-
-        if RelatoriosWindow.ultima_escolha_mostrar:
-            idx = self.cb_mostrar.findText(RelatoriosWindow.ultima_escolha_mostrar)
-            if idx >= 0:
-                self.cb_mostrar.setCurrentIndex(idx)
-        else:
-            self.cb_mostrar.setCurrentIndex(2)  # padrão Capital+Juros
-
-        # Estilo dos combobox
-        for cb in [self.cb_tipo, self.cb_mostrar]:
-            cb.setStyleSheet("""
-                QComboBox {
-                    background-color:#2c3446;
-                    color:white;
-                    padding:6px;
-                    border-radius:6px;
-                }
-                QComboBox QAbstractItemView {
-                    background-color:#2c3446;
-                    color:white;
-                    selection-background-color:#374157;
-                }
-            """)
-
         filtro_layout.addWidget(lbl_tipo)
         filtro_layout.addWidget(self.cb_tipo)        
-        
 
         # Botão Gerar em nova janela
         self.btn_gerar = QPushButton("📑 Gerar")
@@ -95,6 +62,41 @@ class RelatoriosWindow(QWidget):
         filtro_layout.addWidget(self.btn_gerar)
 
         self.layout_principal.addLayout(filtro_layout)
+
+        # 🔹 Tabela fixa de "Empréstimos em atraso"
+        self.tabela = QTableWidget()
+        self.tabela.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.tabela.verticalHeader().setVisible(False)
+        self.tabela.setStyleSheet("""
+            QTableWidget {
+                background-color: #2c3446;
+                color: white;
+                border: 1px solid #3a455b;
+                selection-background-color: transparent;
+                selection-color: white;
+            }
+            QHeaderView::section {
+                background-color: #374157;
+                color: white;
+                font-weight: bold;
+                padding: 6px;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: transparent;
+                color: white;
+                border: 1px solid #3498db;
+            }
+        """)
+        self.layout_principal.addWidget(self.tabela)
+
+        # Carregar relatório em atraso automaticamente
+        self._popula_tabela_emprestimos_em_atraso()
+
+        # Habilitar duplo clique para abrir parcelas
+        self.tabela.cellDoubleClicked.connect(self._abrir_parcelas_do_emprestimo)
+
 
     def carregar_dados(self):
         RelatoriosWindow.ultima_escolha_tipo = self.cb_tipo.currentText()
@@ -444,12 +446,8 @@ class RelatoriosWindow(QWidget):
         self.lbl_total_valor = lbl_total_valor        
 
     def _abrir_parcelas_do_emprestimo(self, row, col):
-        """Abre a tela de parcelas do empréstimo ao dar duplo clique no relatório de atrasados."""
-        filtro = self.cb_tipo.currentText()
-        if filtro not in ["Empréstimos (com parcelas em atraso)", "Empréstimos (com renegociação)", "Empréstimos (em dia)"]:
-            return  # só reage nesses relatórios
-        
-        item_id = self.tabela.item(row, 2)  # coluna oculta com id do empréstimo
+        """Abre a tela de parcelas do empréstimo ao dar duplo clique em uma linha."""
+        item_id = self.tabela.item(row, 2)  # 🔹 coluna oculta com id do empréstimo
         if not item_id:
             return
 
@@ -481,6 +479,10 @@ class RelatoriosWindow(QWidget):
 
         win = ParcelasWindow(emprestimo_dict, emp[8], parent=self)
         win.show()
+
+        # manter referência para não ser coletada pelo garbage collector
+        self.parcelas_window = win
+
 
 
     def _popula_tabela_emprestimos_com_renegociacao(self):
@@ -729,11 +731,9 @@ class RelatoriosWindow(QWidget):
         QMessageBox.information(self, "Sucesso", f"Relatório salvo em:\n{path}")
 
     def abrir_em_nova_janela(self):    
+        tipo = self.cb_tipo.currentText()        
 
-        tipo = self.cb_tipo.currentText()
-        mostrar = self.cb_mostrar.currentText()
-
-        # 🔹 Monta dados do relatório (aqui só implementei Parcelas em aberto como exemplo)
+        # 🔹 Monta dados do relatório
         colunas = []
         linhas = []
 
@@ -743,6 +743,10 @@ class RelatoriosWindow(QWidget):
             clientes_dict = {c[0]: c[1] for c in carregar_clientes()}
 
             colunas = ["Cliente", "Nº", "Capital", "Juros", "Saldo"]
+
+            total_capital = 0.0
+            total_juros = 0.0
+            total_saldo = 0.0
 
             for p in todas_parcelas:
                 (
@@ -780,76 +784,190 @@ class RelatoriosWindow(QWidget):
                     f"R$ {saldo:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
                 ])
 
+                total_capital += capital_parc
+                total_juros += juros_parc
+                total_saldo += saldo
+
+            # Linha totalizadora
+            linhas.append([
+                "<b>TOTAL</b>",
+                "",
+                f"<b>R$ {total_capital:,.2f}</b>".replace(",", "X").replace(".", ",").replace("X", "."),
+                f"<b>R$ {total_juros:,.2f}</b>".replace(",", "X").replace(".", ",").replace("X", "."),
+                f"<b>R$ {total_saldo:,.2f}</b>".replace(",", "X").replace(".", ",").replace("X", "."),
+            ])
+
+        elif tipo == "Empréstimos (com parcelas em atraso)":
+            from datetime import datetime
+            todas_parcelas = carregar_parcelas()
+            emprestimos = {e[0]: e for e in carregar_emprestimos() if e[9] == "sim"}
+            clientes = {c[0]: c[1] for c in carregar_clientes()}
+
+            hoje = datetime.today()
+            dados = {}
+            total_geral = 0.0
+
+            for p in todas_parcelas:
+                (
+                    _id, id_emp, num, valor, venc,
+                    juros, desconto, pg_principal, pg_juros,
+                    valor_pago, residual, data_pag, _id_usuario,
+                    data_prevista, comentario
+                ) = p
+
+                if id_emp not in emprestimos:
+                    continue
+                if valor_pago and str(valor_pago).strip() not in ("", "0", "R$ 0,00"):
+                    continue
+
+                try:
+                    venc_dt = datetime.strptime(venc, "%d/%m/%Y") if venc else None
+                except:
+                    venc_dt = None
+                if not venc_dt or hoje <= venc_dt:
+                    continue
+
+                try:
+                    valor_float = 0.0
+                    if residual and str(residual).strip():
+                        valor_float = float(str(residual).replace("R$", "").replace(".", "").replace(",", "."))
+                    elif valor and str(valor).strip():
+                        valor_float = float(str(valor).replace("R$", "").replace(".", "").replace(",", "."))
+                except:
+                    valor_float = 0.0
+
+                nome_cliente = clientes.get(emprestimos[id_emp][1], "Desconhecido")
+                dados[nome_cliente] = dados.get(nome_cliente, 0.0) + valor_float
+                total_geral += valor_float
+
+            colunas = ["Cliente", "Total em atraso"]
+            linhas = []
+            for nome, total in dados.items():
+                linhas.append([
+                    nome,
+                    f"R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                ])
+
+            # Linha de totalização em negrito
+            linhas.append([
+                "<b>TOTAL</b>",
+                f"<b>R$ {total_geral:,.2f}</b>".replace(",", "X").replace(".", ",").replace("X", "."),
+            ])
+
+        elif tipo == "Todos os empréstimos (em aberto)":
+            todas_parcelas = carregar_parcelas()
+            emprestimos = {e[0]: e for e in carregar_emprestimos() if e[9] == "sim"}
+            clientes = {c[0]: c[1] for c in carregar_clientes()}
+
+            dados = {}
+            total_geral = 0.0
+
+            for p in todas_parcelas:
+                (
+                    _id, id_emp, num, valor, venc,
+                    juros, desconto, pg_principal, pg_juros,
+                    valor_pago, residual, data_pag, _id_usuario,
+                    data_prevista, comentario
+                ) = p
+
+                if id_emp not in emprestimos:
+                    continue
+
+                # Ignora parcelas já pagas
+                if valor_pago and str(valor_pago).strip() not in ("", "0", "R$ 0,00"):
+                    continue
+
+                try:
+                    valor_float = 0.0
+                    if residual and str(residual).strip():
+                        valor_float = float(str(residual).replace("R$", "").replace(".", "").replace(",", "."))
+                    elif valor and str(valor).strip():
+                        valor_float = float(str(valor).replace("R$", "").replace(".", "").replace(",", "."))
+                except:
+                    valor_float = 0.0
+
+                nome_cliente = clientes.get(emprestimos[id_emp][1], "Desconhecido")
+                dados[nome_cliente] = dados.get(nome_cliente, 0.0) + valor_float
+                total_geral += valor_float
+
+            colunas = ["Cliente", "Valor em aberto"]
+            linhas = []
+            for nome, total in dados.items():
+                linhas.append([
+                    nome,
+                    f"R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                ])
+
+            # Linha de totalização em negrito
+            linhas.append([
+                "<b>TOTAL</b>",
+                f"<b>R$ {total_geral:,.2f}</b>".replace(",", "X").replace(".", ",").replace("X", "."),
+            ])
+
         else:
             colunas = ["Aviso"]
             linhas = [[f"Implementar relatório '{tipo}' em HTML"]]
 
         # 🔹 Monta o HTML com dados embutidos
         html = f"""<!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-    <meta charset="UTF-8">
-    <title>📑 Relatório</title>
-    <style>
-        body {{ background:#ffffff; color:#333; font-family: Arial, sans-serif; padding:20px; }}
-        h2 {{ color:#2c3e50; }}
-        table {{ width:100%; border-collapse: collapse; margin-top:20px; }}
-        th, td {{ border:1px solid #ccc; padding:8px; text-align:center; }}
-        th {{ background:#f0f0f0; color:#333; }}
-        tr:nth-child(even) {{ background:#f9f9f9; }}
-        .btn {{ background:#3498db; color:white; padding:8px 12px; border:none; border-radius:6px; cursor:pointer; }}
-        .btn:hover {{ background:#2980b9; }}
-    </style>
-    </head>
-    <body>
-    <h2>📊 {tipo}</h2>
-    <button class="btn" onclick="gerarPDF()">📥 Gerar PDF</button>
-    <table id="tabela">
-        <thead><tr id="header"></tr></thead>
-        <tbody id="corpo"></tbody>
-    </table>
+        <html lang="pt-BR">
+        <head>
+        <meta charset="UTF-8">
+        <title>📑 Relatório</title>
+        <style>
+            body {{ background:#ffffff; color:#333; font-family: Arial, sans-serif; padding:20px; }}
+            h2 {{ color:#2c3e50; }}
+            table {{ width:100%; border-collapse: collapse; margin-top:20px; }}
+            th, td {{ border:1px solid #ccc; padding:8px; text-align:center; }}
+            th {{ background:#f0f0f0; color:#333; }}
+            tr:nth-child(even) {{ background:#f9f9f9; }}
+            .btn {{ background:#3498db; color:white; padding:8px 12px; border:none; border-radius:6px; cursor:pointer; }}
+            .btn:hover {{ background:#2980b9; }}
+        </style>
+        </head>
+        <body>
+        <h2>📊 {tipo}</h2>
+        <button class="btn" onclick="gerarPDF()">📥 Gerar PDF</button>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
-    <script>
-        const dados = {{
-        tipo: "{tipo}",
-        mostrar: "{mostrar}",
-        colunas: {colunas},
-        linhas: {linhas}
-        }};
+        <div id="relatorio">
+            <table id="tabela">
+                <thead><tr id="header"></tr></thead>
+                <tbody id="corpo"></tbody>
+            </table>
+        </div>
 
-        // Cabeçalhos
-        let headerRow = document.getElementById("header");
-        dados.colunas.forEach(c => {{
-        let th = document.createElement("th");
-        th.textContent = c;
-        headerRow.appendChild(th);
-        }});
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
+        <script>
+            const dados = {{
+            tipo: "{tipo}",        
+            colunas: {colunas},
+            linhas: {linhas}
+            }};
 
-        // Linhas
-        let corpo = document.getElementById("corpo");
-        dados.linhas.forEach(linha => {{
-        let tr = document.createElement("tr");
-        linha.forEach(cel => {{
-            let td = document.createElement("td");
-            td.textContent = cel;
-            tr.appendChild(td);
-        }});
-        corpo.appendChild(tr);
-        }});
+            // Cabeçalhos
+            let headerRow = document.getElementById("header");
+            dados.colunas.forEach(c => {{
+                let th = document.createElement("th");
+                th.textContent = c;
+                headerRow.appendChild(th);
+            }});
 
-        function gerarPDF() {{
-        html2pdf().from(document.body).save("relatorio.pdf");
-        }}
-    </script>
-    </body>
-    </html>"""
+            // Linhas
+            let corpo = document.getElementById("corpo");
+            dados.linhas.forEach(linha => {{
+                let tr = document.createElement("tr");
+                linha.forEach(cel => {{
+                    let td = document.createElement("td");
+                    td.innerHTML = cel;  // 🔹 permite tags <b> para negrito
+                    tr.appendChild(td);
+                }});
+                corpo.appendChild(tr);
+            }});
 
-        # 🔹 Salva o HTML em disco
-        pasta = os.path.dirname(get_local_db_path())
-        caminho_html = os.path.join(pasta, "relatorio.html")
-        with open(caminho_html, "w", encoding="utf-8") as f:
-            f.write(html)
-
-        # 🔹 Abre no navegador
-        webbrowser.open(f"file://{caminho_html}")
+            function gerarPDF() {{
+                const relatorio = document.getElementById("relatorio");  // 🔹 só título + tabela
+                html2pdf().from(relatorio).save("relatorio.pdf");
+            }}
+        </script>
+        </body>
+        </html>"""

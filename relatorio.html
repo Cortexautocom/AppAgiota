@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+    <meta charset="UTF-8">
+    <title>📑 Relatório</title>
+    <style>
+        body { background:#ffffff; color:#333; font-family: Arial, sans-serif; padding:20px; }
+        h2 { color:#2c3e50; }
+        table { width:100%; border-collapse: collapse; margin-top:20px; }
+        th, td { border:1px solid #ccc; padding:8px; text-align:center; }
+        th { background:#f0f0f0; color:#333; }
+        tr:nth-child(even) { background:#f9f9f9; }
+        .btn { background:#3498db; color:white; padding:8px 12px; border:none; border-radius:6px; cursor:pointer; }
+        .btn:hover { background:#2980b9; }
+    </style>
+    </head>
+    <body>
+    <h2>📊 Parcelas em aberto</h2>
+    <button class="btn" onclick="gerarPDF()">📥 Gerar PDF</button>
+    <table id="tabela">
+        <thead><tr id="header"></tr></thead>
+        <tbody id="corpo"></tbody>
+    </table>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
+    <script>
+        const dados = {
+        tipo: "Parcelas em aberto",        
+        colunas: ['Cliente', 'Nº', 'Capital', 'Juros', 'Saldo'],
+        linhas: [['Alessandra Oliveira de Albuquerque', '2', 'R$ 800,00', 'R$ 200,00', 'R$ 1.000,00'], ['Alessandra Oliveira de Albuquerque', '3', 'R$ 800,00', 'R$ 200,00', 'R$ 1.000,00'], ['Alessandra Oliveira de Albuquerque', '4', 'R$ 800,00', 'R$ 200,00', 'R$ 1.000,00'], ['Alessandra Oliveira de Albuquerque', '5', 'R$ 800,00', 'R$ 200,00', 'R$ 1.000,00'], ['Antônio Fagundes', '1', 'R$ 833,33', 'R$ 166,67', 'R$ 1.000,00'], ['Antônio Fagundes', '2', 'R$ 833,33', 'R$ 166,67', 'R$ 1.000,00'], ['Antônio Fagundes', '3', 'R$ 833,33', 'R$ 166,67', 'R$ 1.000,00'], ['Antônio Fagundes', '4', 'R$ 833,33', 'R$ 166,67', 'R$ 1.000,00'], ['Antônio Fagundes', '5', 'R$ 833,33', 'R$ 166,67', 'R$ 1.000,00'], ['Carla Perez', '1', 'R$ 727,27', 'R$ 272,73', 'R$ 1.000,00'], ['Carla Perez', '2', 'R$ 727,27', 'R$ 272,73', 'R$ 1.000,00'], ['Carla Perez', '3', 'R$ 727,27', 'R$ 272,73', 'R$ 1.000,00'], ['Carla Perez', '4', 'R$ 727,27', 'R$ 272,73', 'R$ 1.000,00'], ['Carla Perez', '5', 'R$ 727,27', 'R$ 272,73', 'R$ 1.000,00'], ['Carla Perez', '6', 'R$ 727,27', 'R$ 272,73', 'R$ 1.000,00'], ['Carla Perez', '7', 'R$ 727,27', 'R$ 272,73', 'R$ 1.000,00'], ['Carla Perez', '8', 'R$ 727,27', 'R$ 272,73', 'R$ 1.000,00'], ['Carla Perez', '9', 'R$ 727,27', 'R$ 272,73', 'R$ 1.000,00'], ['Antônio Fagundes', '6', 'R$ 833,33', 'R$ 166,67', 'R$ 1.000,00'], ['Carla Perez', '10', 'R$ 727,27', 'R$ 272,73', 'R$ 1.000,00'], ['Carla Perez', '11', 'R$ 727,27', 'R$ 272,73', 'R$ 1.000,00'], ['<b>TOTAL</b>', '', '<b>R$ 16.200,00</b>', '<b>R$ 4.800,00</b>', '<b>R$ 21.000,00</b>']]
+        };
+
+        // Cabeçalhos
+        let headerRow = document.getElementById("header");
+        dados.colunas.forEach(c => {
+            let th = document.createElement("th");
+            th.textContent = c;
+            headerRow.appendChild(th);
+        });
+
+        // Linhas
+        let corpo = document.getElementById("corpo");
+        dados.linhas.forEach(linha => {
+            let tr = document.createElement("tr");
+            linha.forEach(cel => {
+                let td = document.createElement("td");
+                td.innerHTML = cel;  // 🔹 permite tags <b> para negrito
+                tr.appendChild(td);
+            });
+            corpo.appendChild(tr);
+        });
+
+        function gerarPDF() {
+            html2pdf().from(document.body).save("relatorio.pdf");
+        }
+    </script>
+    </body>
+    </html>

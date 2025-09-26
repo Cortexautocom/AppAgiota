@@ -61,8 +61,8 @@ class RelatorioJanelaWindow(QWidget):
             self._mostrar_emprestimos_em_atraso()
         elif tipo == "Empréstimos (com renegociação)":
             self._mostrar_emprestimos_com_renegociacao()
-        elif tipo == "Empréstimos ativos":
-            self._mostrar_emprestimos_ativos()
+        elif tipo == "Todos os empréstimos (em aberto)":
+            self._mostrar_todos_em_aberto()
         elif tipo == "Empréstimos inativos":
             self._mostrar_emprestimos_inativos()
 
@@ -381,49 +381,67 @@ class RelatorioJanelaWindow(QWidget):
         self.layout_principal.addLayout(total_layout)
         self.totalizador_layout = total_layout
 
-    def _mostrar_emprestimos_ativos(self):
-        """Lista todos os empréstimos marcados como ativos (sim)."""
+    def _mostrar_todos_em_aberto(self):
+        """Lista todos os empréstimos e soma o valor ainda em aberto (não pago)."""
+        from parcelas import carregar_parcelas
         from emprestimos import carregar_emprestimos
         from clientes import carregar_clientes
 
         self.tabela.clearContents()
         self.tabela.setRowCount(0)
-        self.tabela.setColumnCount(4)
-        self.tabela.setHorizontalHeaderLabels(["Cliente", "Capital", "Juros", "Total"])
+        self.tabela.setColumnCount(2)
+        self.tabela.setHorizontalHeaderLabels(["Cliente", "Total em aberto"])
 
-        emprestimos = [e for e in carregar_emprestimos() if e[9] == "sim"]
+        todas_parcelas = carregar_parcelas()
+        emprestimos = {e[0]: e for e in carregar_emprestimos()}
         clientes = {c[0]: c[1] for c in carregar_clientes()}
 
-        total_capital = 0.0
-        total_juros = 0.0
+        dados = {}
         total_geral = 0.0
 
-        self.tabela.setRowCount(len(emprestimos))
-        for i, emp in enumerate(emprestimos):
-            nome_cliente = clientes.get(emp[1], "Desconhecido")
+        for p in todas_parcelas:
+            (
+                _id, id_emp, num, valor, venc,
+                juros, desconto, pg_principal, pg_juros,
+                valor_pago, residual, data_pag, _id_usuario,
+                data_prevista, comentario
+            ) = p
 
+            if id_emp not in emprestimos:
+                continue
+
+            # Ignora parcelas já pagas
+            if valor_pago and str(valor_pago).strip() not in ("", "0", "R$ 0,00"):
+                continue
+
+            # Valor em aberto = residual se existir, senão valor original
             try:
-                capital = float(emp[2] or 0)
-                juros = float(emp[6] or 0)
+                valor_float = 0.0
+                if residual and str(residual).strip():
+                    valor_float = float(str(residual).replace("R$", "").replace(".", "").replace(",", "."))
+                elif valor and str(valor).strip():
+                    valor_float = float(str(valor).replace("R$", "").replace(".", "").replace(",", "."))
             except:
-                capital = juros = 0.0
+                valor_float = 0.0
 
-            total = capital + juros
+            nome_cliente = clientes.get(emprestimos[id_emp][1], "Desconhecido")
+            dados[nome_cliente] = dados.get(nome_cliente, 0.0) + valor_float
+            total_geral += valor_float
 
-            total_capital += capital
-            total_juros += juros
-            total_geral += total
+        # Popular tabela
+        self.tabela.setRowCount(len(dados))
+        for i, (nome, total) in enumerate(dados.items()):
+            nome_item = QTableWidgetItem(nome)
+            nome_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 0, nome_item)
 
-            self.tabela.setItem(i, 0, QTableWidgetItem(nome_cliente))
-            self.tabela.setItem(i, 1, QTableWidgetItem(self._fmt_br(capital)))
-            self.tabela.setItem(i, 2, QTableWidgetItem(self._fmt_br(juros)))
-            self.tabela.setItem(i, 3, QTableWidgetItem(self._fmt_br(total)))
+            total_item = QTableWidgetItem(self._fmt_br(total))
+            total_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela.setItem(i, 1, total_item)
 
-            for col in range(4):
-                item = self.tabela.item(i, col)
-                item.setTextAlignment(Qt.AlignCenter)
+        # Totalizador
+        self._adicionar_totalizador_atraso(total_geral)
 
-        self._adicionar_totalizador_emp("ATIVOS", total_capital, total_juros, total_geral)
 
     def _mostrar_emprestimos_inativos(self):
         """Lista todos os empréstimos marcados como inativos (não)."""
