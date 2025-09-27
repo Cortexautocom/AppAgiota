@@ -38,9 +38,9 @@ class RelatoriosWindow(QWidget):
 
         lbl_tipo = QLabel("Tipo:")
         self.cb_tipo = QComboBox()
-        self.cb_tipo.addItems([
-            "Parcelas em aberto",
+        self.cb_tipo.addItems([            
             "Empréstimos (com parcelas em atraso)",
+            "Parcelas em aberto",
             "Empréstimos (com renegociação)",
             "Todos os empréstimos (em aberto)",
             "Empréstimos inativos"
@@ -854,6 +854,62 @@ class RelatoriosWindow(QWidget):
                 f"<b>R$ {total_geral:,.2f}</b>".replace(",", "X").replace(".", ",").replace("X", "."),
             ])
 
+        elif tipo == "Empréstimos (com renegociação)":
+            from datetime import datetime
+            todas_parcelas = carregar_parcelas()
+            emprestimos = {e[0]: e for e in carregar_emprestimos() if e[9] == "sim"}
+            clientes = {c[0]: c[1] for c in carregar_clientes()}
+
+            hoje = datetime.today()
+            dados = {}
+            total_geral = 0.0
+
+            for p in todas_parcelas:
+                (
+                    _id, id_emp, num, valor, venc,
+                    juros, desconto, pg_principal, pg_juros,
+                    valor_pago, residual, data_pag, _id_usuario,
+                    data_prevista, comentario
+                ) = p
+
+                if id_emp not in emprestimos:
+                    continue
+                if not data_prevista:
+                    continue
+
+                try:
+                    prev_dt = datetime.strptime(data_prevista, "%d/%m/%Y")
+                except:
+                    continue
+
+                if prev_dt >= hoje:  # renegociação válida
+                    try:
+                        valor_float = 0.0
+                        if residual and str(residual).strip():
+                            valor_float = float(str(residual).replace("R$", "").replace(".", "").replace(",", "."))
+                        elif valor and str(valor).strip():
+                            valor_float = float(str(valor).replace("R$", "").replace(".", "").replace(",", "."))
+                    except:
+                        valor_float = 0.0
+
+                    nome_cliente = clientes.get(emprestimos[id_emp][1], "Desconhecido")
+                    dados[nome_cliente] = dados.get(nome_cliente, 0.0) + valor_float
+                    total_geral += valor_float
+
+            colunas = ["Cliente", "Total em renegociação"]
+            linhas = []
+            for nome, total in dados.items():
+                linhas.append([
+                    nome,
+                    f"R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                ])
+
+            linhas.append([
+                "<b>TOTAL</b>",
+                f"<b>R$ {total_geral:,.2f}</b>".replace(",", "X").replace(".", ",").replace("X", "."),
+            ])
+
+
         elif tipo == "Todos os empréstimos (em aberto)":
             todas_parcelas = carregar_parcelas()
             emprestimos = {e[0]: e for e in carregar_emprestimos() if e[9] == "sim"}
@@ -970,14 +1026,13 @@ class RelatoriosWindow(QWidget):
             }}
         </script>
         </body>
-        </html>"""
+        </html>"""    
 
-    def abrir_em_nova_janela(self):
-        from ui.relatoriojanela_ui import RelatorioJanelaWindow
-        tipo = self.cb_tipo.currentText()
-        mostrar = getattr(self, "cb_mostrar", None)
-        mostrar_text = mostrar.currentText() if mostrar else "Capital + Juros"
-        
-        self.nova_janela = RelatorioJanelaWindow(tipo, mostrar_text, parent=self)
-        self.nova_janela.show()
-        
+        # 🔹 Salva o HTML em disco
+        pasta = os.path.dirname(get_local_db_path())
+        caminho_html = os.path.join(pasta, "relatorio.html")
+        with open(caminho_html, "w", encoding="utf-8") as f:
+            f.write(html)
+
+        # 🔹 Abre no navegador
+        webbrowser.open(f"file://{caminho_html}")

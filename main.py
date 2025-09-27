@@ -105,21 +105,21 @@ class ModernWindow(QMainWindow):
         self.load_local_db()
 
         # 🔹 Layout principal da interface
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(self.create_top_bar())
+        self.main_layout = QVBoxLayout()   # agora é atributo da classe
+        self.main_layout.addWidget(self.create_top_bar())
 
         self.main_content_layout = QHBoxLayout()
-        main_layout.addLayout(self.main_content_layout)
+        self.main_layout.addLayout(self.main_content_layout)
 
         # Menu lateral
         self.menu = self.create_menu()
         self.main_content_layout.addWidget(self.menu)
 
-        # Área de conteúdo
-        self.content_area = QLabel("Conteúdo principal aqui")
-        self.content_area.setStyleSheet("color: #ccc; font-size: 24px;")
-        self.content_area.setAlignment(Qt.AlignCenter)
-        self.main_content_layout.addWidget(self.content_area)
+        # Área de conteúdo inicial
+        self.content = QLabel("Bem-vindo!")
+        self.content.setAlignment(Qt.AlignCenter)
+        self.content.setStyleSheet("font-size: 18px; color: #9fb0c7;")
+        self.main_content_layout.addWidget(self.content)
 
         # 🔹 Casca visual com sombra e cantos arredondados
         shell = QFrame()
@@ -130,7 +130,7 @@ class ModernWindow(QMainWindow):
 
         content = QWidget()
         content.setObjectName("Content")
-        content.setLayout(main_layout)
+        content.setLayout(self.main_layout)
         shell_layout.addWidget(content)
 
         shell.setStyleSheet("""
@@ -150,6 +150,7 @@ class ModernWindow(QMainWindow):
         self.setCentralWidget(shell)
         self.center()
         self.load_local_db()
+
 
     # ======== Top bar ========
     def create_top_bar(self):
@@ -232,6 +233,22 @@ class ModernWindow(QMainWindow):
 
         menu_layout = QVBoxLayout(menu)
 
+        # Botão Painel (primeiro item)
+        self.btn_painel = QPushButton("🏠 Painel")
+        self.btn_painel.setStyleSheet("""
+            QPushButton {
+                background: none; color: white;
+                padding: 12px; text-align: left;
+                font-size: 15px; border: none;
+            }
+            QPushButton:hover {
+                background-color: #374157;
+                border-radius: 5px;
+            }
+        """)
+        self.btn_painel.clicked.connect(self.show_painel)
+        menu_layout.addWidget(self.btn_painel)
+
         # Botão para abrir pesquisa de clientes
         self.btn_clientes = QPushButton("👤 Clientes")
         self.btn_clientes.setStyleSheet("""
@@ -282,7 +299,7 @@ class ModernWindow(QMainWindow):
 
         menu_layout.addStretch()
         return menu
-
+    
     # ======== Formulário de Cliente ========
     def open_client_form(self, initial_data=None, edit_index=None):
         def callback(data):
@@ -775,9 +792,15 @@ class ModernWindow(QMainWindow):
 
     # ======== Utilidades ========
     def _replace_main_content(self, new_widget: QWidget):
-        old = self.main_content_layout.itemAt(1).widget()
-        old.setParent(None)
-        self.main_content_layout.addWidget(new_widget)
+        # Remove o widget antigo, se existir
+        if hasattr(self, "content") and self.content is not None:
+            self.main_content_layout.removeWidget(self.content)
+            self.content.deleteLater()
+
+        # Adiciona o novo
+        self.content = new_widget
+        self.main_content_layout.addWidget(self.content)
+
 
     def center(self):
         """Centraliza a janela na tela."""
@@ -930,6 +953,21 @@ class ModernWindow(QMainWindow):
     def show_reports_screen(self):
         self.reports_widget = RelatoriosWindow(parent=self)
         self._replace_main_content(self.reports_widget)
+
+    def show_painel(self):
+        """Mostra apenas uma tela vazia (painel inicial)."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Por enquanto, só um label no centro
+        label = QLabel("Painel (vazio por enquanto)")
+        label.setStyleSheet("color: white; font-size: 18px;")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+
+        self._replace_main_content(widget)
+
+
 
 # =====================================================================
 # SaveWorker (Thread para salvar em segundo plano)
